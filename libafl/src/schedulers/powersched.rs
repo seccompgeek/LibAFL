@@ -160,6 +160,8 @@ pub enum PowerSchedule {
     LIN,
     /// The `quad` power schedule
     QUAD,
+    /// AFLGo's distance-based power schedule
+    AFLGo
 }
 
 /// A corpus scheduler using power schedules
@@ -295,7 +297,7 @@ where
 
         let psmeta = state.metadata_mut::<SchedulerMetadata>()?;
 
-        hash %= psmeta.n_fuzz().len();
+        hash %= psmeta.n_fuzz().len(); 
         // Update the path frequency
         psmeta.n_fuzz_mut()[hash] = psmeta.n_fuzz()[hash].saturating_add(1);
 

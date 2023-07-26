@@ -40,7 +40,8 @@ pub trait HasTestcase: UsesInput {
 /// An entry in the Testcase Corpus
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(bound = "I: serde::de::DeserializeOwned")]
-pub struct Testcase<I>
+pub struct 
+Testcase<I>
 where
     I: Input,
 {

@@ -232,6 +232,27 @@ where
                     factor = ((entry.scheduled_count() * entry.scheduled_count()) as f64)
                         / f64::from(psmeta.n_fuzz()[tcmeta.n_fuzz_entry()] + 1);
                 }
+                PowerSchedule::AFLGo => {
+                    let mut n_paths = 0;
+                    let mut v = 0.0;
+                    let corpus = state.corpus();
+                    let cur_index = corpus.current().unwrap();
+                    for idx in corpus.ids() {
+                        let n_fuzz_entry = if cur_index == idx {
+                            entry
+                                .metadata::<SchedulerTestcaseMetadata>()?
+                                .n_fuzz_entry()
+                        } else {
+                            corpus
+                                .get(idx)?
+                                .borrow()
+                                .metadata::<SchedulerTestcaseMetadata>()?
+                                .n_fuzz_entry()
+                        };
+                        v += libm::log2(f64::from(psmeta.n_fuzz()[n_fuzz_entry]));
+                        n_paths += 1;
+                    }
+                }
             }
         }
 
