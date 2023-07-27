@@ -1,4 +1,5 @@
-use std::{path::Path, fs, process::{Command, Stdio}};
+use std::{path::Path, fs, process::{Command, Stdio}, env, collections::HashMap};
+use libafl_cc::{cfg, HasWeight, ControlFlowGraph};
 use libafl_qemu::{Emulator, elf::EasyElf};
 use std::error::Error;
 
@@ -14,7 +15,7 @@ fn is_64(binary: &[u8]) ->Result<bool, Box<dyn Error>> {
      }
 }
 
-fn preprocess(binary: String) {
+fn preprocess(binary: String) -> String {
 
     let bin_path = Path::new(binary.as_str());
     if !bin_path.exists() {
@@ -36,7 +37,7 @@ fn preprocess(binary: String) {
     fs::copy(binary_path, cwd_str.clone()+"/"+&binary);
     std::env::set_current_dir(&cwd_str).expect("Unable to change working directory");
 
-    let bin_path = cwd_str+"/"+&binary;
+    let bin_path = cwd_str.clone()+"/"+&binary;
 
     let idapro_path_str = std::env::var("IDA_PATH").unwrap_or("/opt/idapro-7.7/".to_string());
     let idapro_path = Path::new(&idapro_path_str);
@@ -64,13 +65,13 @@ fn preprocess(binary: String) {
         panic!("No idb file created! something went wrong");
     }
 
-    let cmd = Command::new(&ida_cmd)
-            .arg("-S\"../ida.py -cg=True\"")
-            .arg(&idb_file)
-            .output()
-            .expect("Failed to run ida.py script analysis on idb file");
+    let ida_script_cmd = ida_cmd.clone()+" -S\"../ida.py -cg=True\" "+&idb_file;
+    let call_graph = cwd_str.clone()+"/callgraph.gdl";
+    let call_graph_path = Path::new(&call_graph);
+    println!("Please execute: {}", &ida_script_cmd);
+    println!("Looking for {}",&call_graph);
+    while !call_graph_path.exists() {}
 
-    println!("Running ida-script: {}",cmd.stdout);
     let graph_easy_path = std::env::var("GRAPH_EASY_PATH").expect("No graph-easy path found! Please set the GRAPH_EASY_PATH environment variable");
 
     Command::new(graph_easy_path)
@@ -81,14 +82,80 @@ fn preprocess(binary: String) {
             .expect("Failed to run graph-easy");
     
     let binsec_path = std::env::var("BINSEC_PATH").expect("No binsec path found! Please set the BINSEC_PATH environment variable");
-
+    println!("Executing: {}", &binsec_path);
     let mut ida_file = binary.clone();
     ida_file.push_str(".ida");
     Command::new(binsec_path)
             .args(["-ida", "-isa", "x86", "-quiet", "-ida-cfg-dot", "-ida-o-ida", &ida_file])
             .output()
             .expect("Failed to run binsec");
-    
+
+    let funcs_file = binary + ".funcs";
+    let funcs_path = Path::new(funcs_file.as_str());
+    if !funcs_path.exists() {
+        panic!("No funcs file found!");
+    }
+    let lines = fs::read_to_string(&funcs_file).unwrap();
+    let lines = lines.lines();
+    let mut graph_string = "".to_string();
+    let mut functions = Vec::new();
+    for line in lines {
+        let t: Vec<&str> = line.split(",").collect();
+        let (addr, func_name) = (t[0],t[1]);
+        let addr = addr.trim_start_matches("0x");
+        let addr = u64::from_str_radix(addr, 16).unwrap();
+        let more = "$$".to_string()+func_name+"+"+addr.to_string().as_str()+"\n";
+        graph_string.push_str(&more);
+        functions.push(func_name);
+    }
+
+    let cfgs = fs::read_dir(cwd_str.clone() + "/cfgs/").expect("Unable to read cfgs folder");
+
+    for func in functions {
+        let path = cwd_str.clone()+"/cfgs/" + func;
+        let cfg_path = Path::new(&path);
+        if cfg_path.exists() {
+            let lines = fs::read_to_string(cfg_path).unwrap();
+            let lines = lines.lines();
+            let mut ids_map: HashMap<&str, &str> = HashMap::default();
+            let mut edges_map: HashMap<&str, Vec<&str>> = HashMap::default();
+            for line in lines {
+                if let Some(label) = line.find("[label=") {
+                    let id = &line[0..label];
+                    let addr_pat = &line[label+"[label=\"".len()..];
+                    let addr = &addr_pat[0..addr_pat.find("\"").unwrap()];
+                    println!("Label: {id} {addr}");
+                    ids_map.insert(id.trim(), addr.trim());
+                    edges_map.insert(addr.trim(), Vec::new());
+                }else if let Some(edge) = line.find(" -> ") {
+                    let from = line[0..edge].trim();
+                    let to = line[edge+" -> ".len()..line.len()-1].trim();
+                    println!("Edge: {from} {to}");
+                    let from_addr = ids_map.get(&from).unwrap();
+                    let to_addr = ids_map.get(&to).unwrap();
+                    edges_map.get_mut(from_addr).unwrap().push(*to_addr);
+                }
+                
+            }
+
+            for entry in edges_map {
+                if !entry.1.is_empty() {
+                    let from_addr = entry.0.trim_start_matches("0x");
+                    let from_addr = u64::from_str_radix(from_addr, 16).unwrap();
+                    let more = "%%".to_string()+func + "+"+from_addr.to_string().as_str()+"\n";
+                    graph_string.push_str(&more);
+                    for end in entry.1 {
+                        let end_addr = end.trim_start_matches("0x");
+                        let end_addr = u64::from_str_radix(end_addr, 16).unwrap();
+                        let more = "->".to_string()+end_addr.to_string().as_str()+"\n";
+                        graph_string.push_str(&more);
+                    }
+                }
+            }
+        }
+    }
+    println!("Graph string: {}", &graph_string);
+    graph_string
 }
 
 fn usage(){
@@ -97,10 +164,19 @@ fn usage(){
     std::process::exit(-1);
 }
 
+struct EdgeMetadata {}
+
+impl HasWeight<EdgeMetadata> for EdgeMetadata {
+    fn compute(metadata: Option<&EdgeMetadata>) -> u32 {
+        1
+    }
+}
+
 fn main() {
     if std::env::args().len() < 2 {
         usage();
     }
     let binary_file = std::env::args().nth(1).unwrap();
-    preprocess(binary_file);
+    let graph_string = preprocess(binary_file);
+    let _: ControlFlowGraph<EdgeMetadata> = cfg::ControlFlowGraph::from_content(&graph_string);
 }

@@ -33,7 +33,7 @@ class BinaryScanner(object):
             for xref in idautils.XrefsFrom(instruction, 0):
                 if xref.type == 17: # code_Near_Call
                     callsite_function_name = idc.get_func_name(xref.to)
-                    # TODO: handle indirect calls ?
+                    # TODO: handle indirect calls ? 
                     if callsite_function_name is not None and len(callsite_function_name) > 0:
                         ct.append((instruction, xref.to, ret))
 
