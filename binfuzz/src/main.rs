@@ -5,6 +5,8 @@ use std::error::Error;
 
 mod cfgbuilder;
 
+use cfgbuilder::ICFG;
+
 fn is_64(binary: &[u8]) ->Result<bool, Box<dyn Error>> {
     use goblin::Object;
      match Object::parse(binary)? {
@@ -15,7 +17,7 @@ fn is_64(binary: &[u8]) ->Result<bool, Box<dyn Error>> {
      }
 }
 
-fn preprocess(binary: String) -> String {
+fn preprocess(binary: String) -> ICFG {
 
     let bin_path = Path::new(binary.as_str());
     if !bin_path.exists() {
@@ -97,16 +99,16 @@ fn preprocess(binary: String) -> String {
     }
     let lines = fs::read_to_string(&funcs_file).unwrap();
     let lines = lines.lines();
-    let mut graph_string = "".to_string();
     let mut functions = Vec::new();
+
+    let mut icfg = ICFG::new(binary.as_str());
+
     for line in lines {
         let t: Vec<&str> = line.split(",").collect();
         let (addr, func_name) = (t[0],t[1]);
         let addr = addr.trim_start_matches("0x");
-        let addr = u64::from_str_radix(addr, 16).unwrap();
-        let more = "$$".to_string()+func_name+"+"+addr.to_string().as_str()+"\n";
-        graph_string.push_str(&more);
-        functions.push(func_name);
+        let addr = usize::from_str_radix(addr, 16).unwrap();
+        icfg.add_func(addr,func_name, false);
     }
 
     let cfgs = fs::read_dir(cwd_str.clone() + "/cfgs/").expect("Unable to read cfgs folder");
@@ -124,13 +126,11 @@ fn preprocess(binary: String) -> String {
                     let id = &line[0..label];
                     let addr_pat = &line[label+"[label=\"".len()..];
                     let addr = &addr_pat[0..addr_pat.find("\"").unwrap()];
-                    println!("Label: {id} {addr}");
                     ids_map.insert(id.trim(), addr.trim());
                     edges_map.insert(addr.trim(), Vec::new());
                 }else if let Some(edge) = line.find(" -> ") {
                     let from = line[0..edge].trim();
                     let to = line[edge+" -> ".len()..line.len()-1].trim();
-                    println!("Edge: {from} {to}");
                     let from_addr = ids_map.get(&from).unwrap();
                     let to_addr = ids_map.get(&to).unwrap();
                     edges_map.get_mut(from_addr).unwrap().push(*to_addr);
@@ -141,21 +141,37 @@ fn preprocess(binary: String) -> String {
             for entry in edges_map {
                 if !entry.1.is_empty() {
                     let from_addr = entry.0.trim_start_matches("0x");
-                    let from_addr = u64::from_str_radix(from_addr, 16).unwrap();
-                    let more = "%%".to_string()+func + "+"+from_addr.to_string().as_str()+"\n";
-                    graph_string.push_str(&more);
+                    let from_addr = usize::from_str_radix(from_addr, 16).unwrap();
+                    icfg.add_block(from_addr,func.to_string())?;
                     for end in entry.1 {
                         let end_addr = end.trim_start_matches("0x");
-                        let end_addr = u64::from_str_radix(end_addr, 16).unwrap();
-                        let more = "->".to_string()+end_addr.to_string().as_str()+"\n";
-                        graph_string.push_str(&more);
+                        let end_addr = usize::from_str_radix(end_addr, 16).unwrap();
+                        icfg.add_block(end_addr, func.to_string())?;
+                        icfg.add_edge(func.to_string(), from_addr, end_addr, None)?;
                     }
                 }
             }
         }
     }
-    println!("Graph string: {}", &graph_string);
-    graph_string
+
+    let cg_path_str = cwd_str.clone()+binary.as_str()+".cg";
+    let cg_path = Path::new(&cg_path_str);
+    if cg_path.exists() {
+        let calls_str = fs::read_to_string(cg_path).unwrap();
+        let calls = calls_str.lines();
+        for line in calls {
+            let entries: Vec<&str> = line.split('(').collect();
+            let caller_info: Vec<&str> = entries[1].trim_end_matches(")").split(';').collect();
+            let caller_name = caller_info[0];
+            let caller_block = usize::from_str_radix(caller_info[1].trim_start_matches("0x"), 16).unwrap();
+            let callee_info: Vec<&str> = entries[3].trim_end_matches(")").split(';').collect();
+            let callee_name = callee_info[0];
+            let callee_block = usize::from_str_radix(callee_info[1].trim_start_matches("0x"), 16).unwrap();
+            icfg.add_edge(callee_name.to_string(), caller_block, callee_block, Some(caller_name.to_string()))?;
+        }
+    }
+
+    return icfg;
 }
 
 fn usage(){
@@ -177,6 +193,5 @@ fn main() {
         usage();
     }
     let binary_file = std::env::args().nth(1).unwrap();
-    let graph_string = preprocess(binary_file);
-    let _: ControlFlowGraph<EdgeMetadata> = cfg::ControlFlowGraph::from_content(&graph_string);
+    let icfg = preprocess(binary_file);
 }
