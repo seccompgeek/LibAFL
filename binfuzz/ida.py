@@ -104,8 +104,10 @@ class BinaryScanner(object):
 
 
 class Printer():
-    def __init__(self):
+    def __init__(self,cg_filename):
         self._to_disassemble = []
+        self.fp = open(cg_filename,"w")
+        self.seen_paths = []
 
     def process_function(self, start, name):
         # function: {start;name}
@@ -126,6 +128,11 @@ class Printer():
             '(' + ','.join(hex_wo_L(s) for s in successors) + ')',
             '(' + ','.join(hex_wo_L(c[0]) + "-" + hex_wo_L(c[1]) + "-" + hex_wo_L(c[2]) for c in call_targets) + ')'
             ]) + ']'
+
+        for c in call_targets:
+            if c not in self.seen_paths:
+                print >> self.fp, "("+fname + ";" + hex_wo_L(start) +")" + "-" + "(" + idc.get_func_name(c[1])+";" + hex_wo_L(c[1]) +")"
+                self.seen_paths.append(c)
 
         # instruction: (addr;mnemonic;opcode;bb_addr;fname)
         for i in idautils.Heads(start, end+1):
@@ -150,8 +157,7 @@ class FuncsPrinter():
 
     def process_bb(self, start, end, size, call_targets, successors, fname):
         pass
-
-
+    
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-o', '--output-dir', metavar='output_dir', type=str,
@@ -183,7 +189,7 @@ if __name__ == "__main__":
     # waits for IDA's auto-analysis to finish before continuing IDC code execution
     idc.auto_wait()
 
-    printer = Printer()
+    printer = Printer(basename+".cg")
     funcs_printer = FuncsPrinter(os.path.join(output_dir, basename + ".funcs"))
 
     scanner = BinaryScanner()
