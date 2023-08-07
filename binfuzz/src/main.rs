@@ -2,6 +2,7 @@ use std::{path::Path, fs, process::{Command, Stdio}, env, collections::HashMap};
 use libafl_cc::{cfg, HasWeight, ControlFlowGraph};
 use libafl_qemu::{Emulator, elf::EasyElf};
 use std::error::Error;
+use libafl::observers::binfuzz::DistancesMapObserver;
 
 mod cfgbuilder;
 
@@ -17,7 +18,7 @@ fn is_64(binary: &[u8]) ->Result<bool, Box<dyn Error>> {
      }
 }
 
-fn preprocess(binary: String) -> ICFG {
+fn preprocess(binary: String, targets: String) -> Result<ICFG, String> {
 
     let bin_path = Path::new(binary.as_str());
     if !bin_path.exists() {
@@ -29,6 +30,7 @@ fn preprocess(binary: String) -> ICFG {
     let mut cwd_str = cwd_str.to_string();
 
     let binary_path = cwd_str.clone()+"/"+&binary;
+    let targets_path = cwd_str.clone()+"/"+&targets;
     cwd_str.push_str("/tmp");
     let cwd = Path::new(&cwd_str);
 
@@ -36,8 +38,12 @@ fn preprocess(binary: String) -> ICFG {
         fs::remove_dir_all(&cwd_str).expect("Unable to remove tmp directory");
     }
     fs::create_dir(&cwd_str).expect("Unable to create tmp directory");
-    fs::copy(binary_path, cwd_str.clone()+"/"+&binary);
+    let _ = fs::copy(binary_path, cwd_str.clone()+"/"+&binary);
+    let _ = fs::copy(targets_path, cwd_str.clone()+"/"+&targets);
+
+
     std::env::set_current_dir(&cwd_str).expect("Unable to change working directory");
+
 
     let bin_path = cwd_str.clone()+"/"+&binary;
 
@@ -92,7 +98,7 @@ fn preprocess(binary: String) -> ICFG {
             .output()
             .expect("Failed to run binsec");
 
-    let funcs_file = binary + ".funcs";
+    let funcs_file = binary.clone() + ".funcs";
     let funcs_path = Path::new(funcs_file.as_str());
     if !funcs_path.exists() {
         panic!("No funcs file found!");
@@ -101,14 +107,16 @@ fn preprocess(binary: String) -> ICFG {
     let lines = lines.lines();
     let mut functions = Vec::new();
 
-    let mut icfg = ICFG::new(binary.as_str());
+    let mut graph_string = "".to_string();
 
     for line in lines {
         let t: Vec<&str> = line.split(",").collect();
         let (addr, func_name) = (t[0],t[1]);
         let addr = addr.trim_start_matches("0x");
         let addr = usize::from_str_radix(addr, 16).unwrap();
-        icfg.add_func(addr,func_name, false);
+        let more = "$$".to_string()+func_name+"+"+addr.to_string().as_str()+"\n";
+        graph_string.push_str(&more);
+        functions.push(func_name);
     }
 
     let cfgs = fs::read_dir(cwd_str.clone() + "/cfgs/").expect("Unable to read cfgs folder");
@@ -142,36 +150,53 @@ fn preprocess(binary: String) -> ICFG {
                 if !entry.1.is_empty() {
                     let from_addr = entry.0.trim_start_matches("0x");
                     let from_addr = usize::from_str_radix(from_addr, 16).unwrap();
-                    icfg.add_block(from_addr,func.to_string())?;
+                    let mut more = "%%".to_string()+func+"+"+from_addr.to_string().as_str()+"\n";
                     for end in entry.1 {
                         let end_addr = end.trim_start_matches("0x");
                         let end_addr = usize::from_str_radix(end_addr, 16).unwrap();
-                        icfg.add_block(end_addr, func.to_string())?;
-                        icfg.add_edge(func.to_string(), from_addr, end_addr, None)?;
+                        more.push_str(&("->".to_string()+end_addr.to_string().as_str()+"\n"));
                     }
+                    graph_string.push_str(&more);
                 }
             }
         }
     }
 
-    let cg_path_str = cwd_str.clone()+binary.as_str()+".cg";
+    let cg_path_str = cwd_str.clone()+"/"+binary.as_str()+".cg";
     let cg_path = Path::new(&cg_path_str);
+    println!("{}", &cg_path_str);
     if cg_path.exists() {
         let calls_str = fs::read_to_string(cg_path).unwrap();
         let calls = calls_str.lines();
         for line in calls {
             let entries: Vec<&str> = line.split('(').collect();
-            let caller_info: Vec<&str> = entries[1].trim_end_matches(")").split(';').collect();
+            let caller_info: Vec<&str> = entries[1].trim_end_matches(")-").split(';').collect();
             let caller_name = caller_info[0];
             let caller_block = usize::from_str_radix(caller_info[1].trim_start_matches("0x"), 16).unwrap();
-            let callee_info: Vec<&str> = entries[3].trim_end_matches(")").split(';').collect();
+
+            let callee_info: Vec<&str> = entries[2].trim_end_matches(")").split(';').collect();
             let callee_name = callee_info[0];
             let callee_block = usize::from_str_radix(callee_info[1].trim_start_matches("0x"), 16).unwrap();
-            icfg.add_edge(callee_name.to_string(), caller_block, callee_block, Some(caller_name.to_string()))?;
+            let more = "%%".to_string() + caller_name + "+" + caller_block.to_string().as_str() + "\n->" + callee_block.to_string().as_str()+"\n";
+            graph_string.push_str(&more);
         }
     }
 
-    return icfg;
+    let mut icfg = ICFG::new(&graph_string);
+    let target_funcs_ps = cwd_str.clone()+"/"+&targets;
+    let target_func_path = Path::new(&target_funcs_ps);
+    if target_func_path.exists() {
+        let lines = fs::read_to_string(target_func_path).unwrap();
+        let lines = lines.lines();
+        for line in lines {
+            let splits: Vec<&str> = line.split(',').collect();
+            let target_func_name = splits[0];
+            let target_func_weight = splits[1].parse().unwrap();
+            icfg.add_target_func(target_func_name, target_func_weight);
+        }
+    }
+
+    return Ok(icfg);
 }
 
 fn usage(){
@@ -180,18 +205,12 @@ fn usage(){
     std::process::exit(-1);
 }
 
-struct EdgeMetadata {}
-
-impl HasWeight<EdgeMetadata> for EdgeMetadata {
-    fn compute(metadata: Option<&EdgeMetadata>) -> u32 {
-        1
-    }
-}
 
 fn main() {
     if std::env::args().len() < 2 {
         usage();
     }
     let binary_file = std::env::args().nth(1).unwrap();
-    let icfg = preprocess(binary_file);
+    let mut icfg = preprocess(binary_file, "racecar.tgt".to_string()).unwrap();
+    icfg.compute_distances("main");
 }

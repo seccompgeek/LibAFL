@@ -1,141 +1,97 @@
-use std::collections::{HashMap, HashSet};
-use std::hash::Hash;
+use std::collections::{BinaryHeap, HashMap, HashSet};
+use goblin::mach::Mach::Binary;
 use libafl_cc::cfg::ControlFlowGraph;
+use libafl_cc::HasWeight;
 
-enum InEdge {
-    Foreign(usize, usize),
-    Local(usize)
-}
+pub struct ICFGMetadata {}
 
-pub struct BasicBlock {
-    id: usize, //the id of a BB == its address in the elf file
-    parent: usize, //the function to which this block belongs
-    incoming: HashSet<InEdge>, //incoming block ids
-    target_distances: HashMap<usize, usize>
-}
-
-impl BasicBlock {
-    pub fn new(id: usize, parent: usize) -> Self{
-        Self{
-            id,
-            parent,
-            incoming: HashSet::default(),
-            target_distances: HashMap::default()
-        }
-    }
-
-    pub fn add_local_incoming(&mut self, id: usize) {
-        self.incoming.insert(InEdge::Local(id));
-    }
-
-    pub fn add_foreign_incoming(&mut self, from_func: usize, id: usize) {
-        self.incoming.insert(InEdge::Foreign(from_func,id));
-    }
-
-}
-
-
-pub struct Function {
-    entry_block: usize,
-    name: String,
-    basic_blocks: HashMap<usize, BasicBlock>,
-    incoming_callers: Vec<usize>,
-    is_target: bool
-}
-
-impl Function {
-    pub fn new(name: &str, id: usize, is_target: bool) -> Self{
-        Self {
-            entry_block: id,
-            name: String::from(name),
-            basic_blocks: HashMap::default(),
-            incoming_callers: Vec::new(),
-            is_target
-        }
-    }
-
-    pub fn add_block(&mut self, block_id: usize) {
-        let bb = BasicBlock::new(block_id, self.entry_block);
-        self.basic_blocks.insert(block_id, bb);
-    }
-
-    pub fn add_incoming_caller(&mut self, caller_id: usize) {
-        self.incoming_callers.push(caller_id);
-    }
-
-    pub fn add_edge(&mut self, from: usize, to: usize, from_func: Option<usize>) -> Result<(), Err(String)>{
-        if let Some(block) = self.basic_blocks.get_mut(&to) {
-            if from_func.is_some() {
-                block.add_foreign_incoming(from_func.unwrap(), from);
-            }else{
-                block.add_local_incoming(from);
-            }
-            Ok(())
-        }else{
-            Err("Adding incoming edge to non-existent block!".to_string())
-        }
+impl HasWeight<ICFGMetadata> for ICFGMetadata {
+    fn compute(metadata: Option<&ICFGMetadata>) -> u32 {
+        1
     }
 }
 
 pub struct ICFG {
-    prog_name: String,
-    func_names_map: HashMap<String, usize>,
-    func_ids_map: HashMap<usize, Function>,
-    target_funcs: Vec<usize>
+    cfg: ControlFlowGraph<ICFGMetadata>,
+    targets: HashMap<String, f64>,
+    cached_distances: HashMap<usize, f64>,
 }
 
 impl ICFG {
-    pub fn new(name: &str) -> Self {
+    pub fn new(cfg_str: &str) -> Self {
+        let cfg = ControlFlowGraph::from_content(cfg_str);
         Self {
-            prog_name: String::from(name),
-            func_names_map: HashMap::default(),
-            func_ids_map: HashMap::default(),
-            target_funcs: Vec::new()
+            cfg,
+            targets: HashMap::default(),
+            cached_distances: HashMap::default()
         }
     }
 
-    pub fn add_func(&mut self, func_id: usize, func_name: &str, is_target: bool) {
-        let func_name = String::from(func_name);
-        self.func_names_map.insert(func_name, func_id);
-        let mut function = Function::new(func_name.as_str(), func_id, is_target);
-        function.add_block(func_id);
-        self.func_ids_map.insert(func_id, function);
-        if is_target {
-            self.target_funcs.push(func_id);
+    pub fn add_target_func(&mut self, func: &str, weight: f64) {
+        self.targets.insert(func.to_string(), weight);
+    }
+
+    fn compute_target_distances(&self, edge_id: usize, default_distances: &HashMap<usize, u32>, visited: &mut HashSet<usize>, distances: &mut HashMap<usize, HashMap<usize, u32>>, loops: &mut HashSet<usize>) -> bool {
+        if !visited.insert(edge_id) {
+            return true;
         }
-    }
 
-    pub fn add_target_func(&mut self, func_id: usize) {
-        self.func_ids_map.entry(func_id).and_modify(|f|{
-            f.is_target = true
-        });
-        self.target_funcs.push(func_id);
-    }
-
-    pub fn add_block(&mut self, block_id: usize, block_parent: String) -> Result<(),Err(String)>{
-        if let Some(func_id) = self.func_names_map.get(&block_parent) {
-            self.func_ids_map.entry(*func_id).and_modify(|f|{
-                f.add_block(block_id);
-            });
-            Ok(())
-        }else {
-            Err("No such function exists".to_string())
-        }
-    }
-
-    pub fn add_edge(&mut self, func: String, from: usize, to: usize, from_func: Option<String>) -> Result<(),Err(String)> {
-        if let Some(func_id) = self.func_names_map.get(&func) {
-            if let Some(from_func) = self.func_names_map.get(from_func.as_ref().unwrap()) {
-                self.func_ids_map.entry(*func_id).and_modify(|f|{
-                    f.add_edge(from, to, Some(*from_func))?;
+        distances.insert(edge_id, default_distances.clone());
+        let edge = self.cfg.get_edge(edge_id).unwrap();
+        if default_distances.contains_key(&edge.bottom_node_loc) {
+            distances.entry(edge_id).and_modify(|map| {
+                map.entry(edge.bottom_node_loc).and_modify(|distance| {
+                    *distance = 1;
                 });
-            }else{
-                return Err("From function does not exist!".to_string());
+            });
+        }
+
+        let mut prev_distances = distances.get(&edge_id).unwrap().clone();
+        let mut changed = false;
+        for succ in &edge.successor_edges {
+            if self.compute_target_distances(*succ, default_distances, visited, distances, loops) {
+                loops.insert(edge_id);
             }
-            Ok(())
-        }else {
-            Err("No such function exists".to_string())
+            let succ_distances = distances.get(succ).unwrap();
+            for (func,dist) in &mut prev_distances {
+                let succ_dist = succ_distances.get(func).unwrap();
+                if succ_dist < dist {
+                    *dist = succ_dist + 1;
+                    changed = true;
+                }
+            }
+        }
+
+        if changed {
+            distances.insert(edge_id, prev_distances);
+        }
+        false
+    }
+
+    pub fn compute_distances(&mut self, entry_func: &str) {
+        if let Some(entry) = self.cfg.get_entry(entry_func) {
+            let mut target_distances: HashMap<usize, HashMap<usize, u32>> = HashMap::default();
+            let mut default_map = HashMap::default();
+            for func in &self.targets {
+                let func_entry = self.cfg.get_entry(&func.0).unwrap();
+                default_map.insert(func_entry.node_loc, u32::MAX);
+            };
+            let mut visited = HashSet::new();
+            for edge in &entry.successor_edges {
+                let mut loops = HashSet::new();
+                self.compute_target_distances(*edge, &default_map, &mut visited, &mut target_distances, &mut loops);
+                for id in &loops {
+                    visited.remove(id);
+                    self.compute_target_distances(*id, &default_map, &mut visited, &mut target_distances, &mut HashSet::default());
+                }
+                let distances = target_distances.get(edge).unwrap();
+                let mut distance = 0.0;
+                for dist in distances {
+                    println!("{}->{}: {}", edge, dist.0, dist.1);
+                    distance += default_map.get(dist.0).unwrap() * dist.1 as f64;
+                }
+                self.cached_distances.insert(*edge, distance);
+            }
         }
     }
 }
-
