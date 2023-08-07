@@ -41,6 +41,10 @@ pub struct SchedulerMetadata {
     queue_cycles: u64,
     /// The vector to contain the frequency of each execution path.
     n_fuzz: Vec<u32>,
+    /// The mid distance to target functions in PFuzz
+    min_d: f64,
+    /// The max distance to target functions in PFuzz
+    max_d: f64,
 }
 
 /// The metadata for runs in the calibration stage.
@@ -57,6 +61,8 @@ impl SchedulerMetadata {
             bitmap_entries: 0,
             queue_cycles: 0,
             n_fuzz: vec![0; N_FUZZ_SIZE],
+            min_d: f64::MAX,
+            max_d: f64::MIN
         }
     }
 
@@ -142,6 +148,18 @@ impl SchedulerMetadata {
     #[must_use]
     pub fn n_fuzz_mut(&mut self) -> &mut [u32] {
         &mut self.n_fuzz
+    }
+
+    /// Gets the mid distance to target functions in PFuzz
+    #[must_use]
+    pub fn mid_d(&self) -> &f64 {
+        &self.min_d
+    }
+
+    /// Gets the max distance to target functions in PFuzz
+    #[must_use]
+    pub fn max_d(&self) -> &f64 {
+        &self.max_d
     }
 }
 
@@ -294,8 +312,19 @@ where
             .ok_or_else(|| Error::key_not_found("MapObserver not found".to_string()))?;
 
         let mut hash = observer.hash() as usize;
+        
+        let distances = observer.to_vec();
+        let distance_sum = distances.iter().sum();
 
         let psmeta = state.metadata_mut::<SchedulerMetadata>()?;
+
+        if psmeta.min_d == f64::MAX || psmeta.min_d > distance_sum {
+            psmeta.min_d = distance_sum;
+        }
+
+        if psmeta.max_d == f64::MIN || psmeta.max_d < distance_sum {
+            psmeta.max_d = distance_sum;
+        }
 
         hash %= psmeta.n_fuzz().len(); 
         // Update the path frequency

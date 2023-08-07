@@ -283,7 +283,7 @@ where
                     .metadata_mut::<SchedulerTestcaseMetadata>()
                     .unwrap()
             };
-
+            //totod: kayondomartin here add distance?
             data.set_cycle_and_time((total_time, iter));
             data.set_bitmap_size(bitmap_size);
             data.set_handicap(handicap);
