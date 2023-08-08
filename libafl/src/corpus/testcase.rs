@@ -356,7 +356,8 @@ impl SchedulerTestcaseMetadata {
     /// Create new [`struct@SchedulerTestcaseMetadata`] given `n_fuzz_entry`
     #[must_use]
     pub fn with_n_fuzz_entry(depth: u64, n_fuzz_entry: usize) -> Self {
-        Self {
+        Self
+        {
             bitmap_size: 0,
             handicap: 0,
             depth,

@@ -1,0 +1,875 @@
+digraph G {
+  node [shape=box, style="rounded", ];
+  3074 [label="0x00000c02
+push ebp", ];
+  2053 [label="0x00000805
+push ebp", ];
+  4103 [label="0x00001007
+add esp, 10h", ];
+  4108 [label="0x0000100c
+cmp [ebp+var_4C], 1", ];
+  5134 [label="0x0000140e
+call banner", ];
+  3086 [label="0x00000c0e
+add ebx, (offset _GLOBAL_OFFSET_TABLE_ - $)", ];
+  2062 [label="0x0000080e
+add esp, 10h", ];
+  4114 [label="0x00001012
+mov eax, [ebp+var_58]", ];
+  5139 [label="0x00001413
+call info", ];
+  5144 [label="0x00001418
+jmp short loc_1463", ];
+  2072 [label="0x00000818
+rep retn", ];
+  16408 [label="0x00004018", ];
+  5146 [label="0x0000141a
+call menu", ];
+  4122 [label="0x0000101a
+cmp [ebp+var_4C], 2", ];
+  16412 [label="0x0000401c", ];
+  5151 [label="0x0000141f
+cmp eax, 1", ];
+  4128 [label="0x00001020
+mov eax, [ebp+var_58]", ];
+  2080 [label="0x00000820
+call __x86_get_pc_thunk_dx", ];
+  16416 [label="0x00004020", ];
+  5156 [label="0x00001424
+cmp eax, 2", ];
+  16420 [label="0x00004024", ];
+  2085 [label="0x00000825
+add edx, (offset _GLOBAL_OFFSET_TABLE_ - $)", ];
+  3110 [label="0x00000c26
+sub esp, 0Ch", ];
+  4136 [label="0x00001028
+sub esp, 8", ];
+  16424 [label="0x00004028", ];
+  5161 [label="0x00001429
+jmp short loc_1443", ];
+  5163 [label="0x0000142b
+call car_info", ];
+  16428 [label="0x0000402c", ];
+  5168 [label="0x00001430
+jmp short loc_1463", ];
+  16432 [label="0x00004030", ];
+  5170 [label="0x00001432
+mov (check - 3F8Ch)[ebx], 0", ];
+  16436 [label="0x00004034", ];
+  3125 [label="0x00000c35
+add esp, 10h", ];
+  16440 [label="0x00004038", ];
+  16444 [label="0x0000403c", ];
+  3133 [label="0x00000c3d
+mov [ebp+var_10], eax", ];
+  4158 [label="0x0000103e
+add esp, 10h", ];
+  16448 [label="0x00004040", ];
+  5185 [label="0x00001441
+jmp short loc_1463", ];
+  5187 [label="0x00001443
+sub esp, 4", ];
+  16452 [label="0x00004044", ];
+  3142 [label="0x00000c46
+cmp [ebp+var_10], 1", ];
+  16456 [label="0x00004048", ];
+  3148 [label="0x00000c4c
+sub esp, 4", ];
+  16460 [label="0x0000404c", ];
+  2126 [label="0x0000084e
+mov edx, ds:(_ITM_registerTMCloneTable_ptr - 3F8Ch)[edx]",
+        ];
+  16464 [label="0x00004050", ];
+  2136 [label="0x00000858
+sub esp, 8", ];
+  16472 [label="0x00004058", ];
+  16476 [label="0x0000405c", ];
+  2143 [label="0x0000085f
+add esp, 10h", ];
+  5216 [label="0x00001460
+add esp, 10h", ];
+  16480 [label="0x00004060", ];
+  2146 [label="0x00000862
+mov ebx, [ebp-4]", ];
+  5219 [label="0x00001463
+mov eax, (check - 3F8Ch)[ebx]", ];
+  16484 [label="0x00004064", ];
+  4200 [label="0x00001068
+add esp, 10h", ];
+  3177 [label="0x00000c69
+add esp, 10h", ];
+  4203 [label="0x0000106b
+nop", ];
+  3180 [label="0x00000c6c
+cmp [ebp+var_10], 2", ];
+  16492 [label="0x0000406c", ];
+  5229 [label="0x0000146d
+nop", ];
+  2160 [label="0x00000870
+push ebp", ];
+  3186 [label="0x00000c72
+cmp [ebp+var_10], 1", ];
+  16500 [label="0x00004074", ];
+  4216 [label="0x00001078
+call __stack_chk_fail_local", ];
+  3192 [label="0x00000c78
+mov eax, [ebp+var_10]", ];
+  2169 [label="0x00000879
+add ebx, (offset _GLOBAL_OFFSET_TABLE_ - $)", ];
+  5242 [label="0x0000147a
+call __stack_chk_fail_local", ];
+  4221 [label="0x0000107d
+mov ebx, [ebp+var_4]", ];
+  5247 [label="0x0000147f
+lea esp, [ebp-8]", ];
+  4226 [label="0x00001082
+push ebp", ];
+  3207 [label="0x00000c87
+call __stack_chk_fail_local", ];
+  2187 [label="0x0000088b
+mov eax, ds:(__cxa_finalize_ptr - 3F8Ch)[ebx]", ];
+  3212 [label="0x00000c8c
+mov ebx, [ebp+var_4]", ];
+  4238 [label="0x0000108e
+add ebx, (offset _GLOBAL_OFFSET_TABLE_ - $)", ];
+  5264 [label="0x00001490
+push ebp", ];
+  3217 [label="0x00000c91
+push ebp", ];
+  2197 [label="0x00000895
+sub esp, 0Ch", ];
+  5273 [label="0x00001499
+add ebx, (offset _GLOBAL_OFFSET_TABLE_ - $)", ];
+  3229 [label="0x00000c9d
+add ebx, (offset _GLOBAL_OFFSET_TABLE_ - $)", ];
+  2211 [label="0x000008a3
+add esp, 10h", ];
+  2214 [label="0x000008a6
+call deregister_tm_clones", ];
+  4265 [label="0x000010a9
+add esp, 10h", ];
+  2219 [label="0x000008ab
+mov ds:(__bss_start - 3F8Ch)[ebx], 1", ];
+  5297 [label="0x000014b1
+lea eax, (__frame_dummy_init_array_entry - 3F8Ch)[ebx]",
+        ];
+  2226 [label="0x000008b2
+mov ebx, [ebp+var_4]", ];
+  4281 [label="0x000010b9
+add esp, 10h", ];
+  5312 [label="0x000014c0
+xor edi, edi", ];
+  2240 [label="0x000008c0
+push ebp", ];
+  3267 [label="0x00000cc3
+sub esp, 0Ch", ];
+  5320 [label="0x000014c8
+sub esp, 4", ];
+  2249 [label="0x000008c9", ];
+  2253 [label="0x000008cd
+push ebp", ];
+  3282 [label="0x00000cd2
+add esp, 10h", ];
+  4309 [label="0x000010d5
+add esp, 10h", ];
+  2265 [label="0x000008d9
+add ebx, (offset _GLOBAL_OFFSET_TABLE_ - $)", ];
+  3290 [label="0x00000cda
+mov [ebp+var_4C], eax", ];
+  5339 [label="0x000014db
+add edi, 1", ];
+  3299 [label="0x00000ce3
+cmp [ebp+var_4C], 1", ];
+  5349 [label="0x000014e5
+add esp, 0Ch", ];
+  4327 [label="0x000010e7
+add esp, 10h", ];
+  3305 [label="0x00000ce9
+sub esp, 4", ];
+  5360 [label="0x000014f0", ];
+  4345 [label="0x000010f9
+add esp, 10h", ];
+  5376 [label="0x00001500
+push ebx", ];
+  2305 [label="0x00000901
+add esp, 10h", ];
+  5382 [label="0x00001506
+add ebx, (offset _GLOBAL_OFFSET_TABLE_ - $)", ];
+  3334 [label="0x00000d06
+add esp, 10h", ];
+  4359 [label="0x00001107
+add esp, 10h", ];
+  3337 [label="0x00000d09
+cmp [ebp+var_4C], 2", ];
+  3343 [label="0x00000d0f
+cmp [ebp+var_4C], 1", ];
+  2320 [label="0x00000910
+add esp, 10h", ];
+  5396 [label="0x00001514
+push ebx", ];
+  3349 [label="0x00000d15
+call race_type", ];
+  3354 [label="0x00000d1a
+mov [ebp+var_48], eax", ];
+  5405 [label="0x0000151d
+add ebx, (offset _GLOBAL_OFFSET_TABLE_ - $)", ];
+  2335 [label="0x0000091f
+call __stack_chk_fail_local", ];
+  4388 [label="0x00001124
+add esp, 10h", ];
+  2340 [label="0x00000924
+mov ebx, [ebp+var_4]", ];
+  3367 [label="0x00000d27
+add esp, 10h", ];
+  2345 [label="0x00000929
+push ebp", ];
+  3379 [label="0x00000d33
+add esp, 10h", ];
+  2357 [label="0x00000935
+add ebx, (offset _GLOBAL_OFFSET_TABLE_ - $)", ];
+  4406 [label="0x00001136
+add esp, 10h", ];
+  3388 [label="0x00000d3c
+cmp [ebp+var_48], 2", ];
+  3394 [label="0x00000d42
+cmp [ebp+var_4C], 2", ];
+  4420 [label="0x00001144
+add esp, 10h", ];
+  3400 [label="0x00000d48
+cmp [ebp+var_48], 2", ];
+  3406 [label="0x00000d4e
+call _rand", ];
+  3411 [label="0x00000d53
+mov ecx, eax", ];
+  2429 [label="0x0000097d
+add esp, 10h", ];
+  3461 [label="0x00000d85
+mov ecx, eax", ];
+  2441 [label="0x00000989
+add esp, 10h", ];
+  2449 [label="0x00000991
+mov ecx, eax", ];
+  4511 [label="0x0000119f
+add esp, 30h", ];
+  3505 [label="0x00000db1
+cmp [ebp+var_4C], 1", ];
+  3511 [label="0x00000db7
+cmp [ebp+var_48], 1", ];
+  4536 [label="0x000011b8
+add esp, 10h", ];
+  2489 [label="0x000009b9
+call _rand", ];
+  3517 [label="0x00000dbd
+cmp [ebp+var_4C], 2", ];
+  2494 [label="0x000009be
+mov ecx, eax", ];
+  3523 [label="0x00000dc3
+cmp [ebp+var_48], 1", ];
+  4552 [label="0x000011c8
+call __stack_chk_fail_local", ];
+  3529 [label="0x00000dc9
+call _rand", ];
+  4557 [label="0x000011cd
+mov ebx, [ebp+var_4]", ];
+  3534 [label="0x00000dce
+mov ecx, eax", ];
+  4562 [label="0x000011d2
+push ebp", ];
+  4574 [label="0x000011de
+add ebx, (offset _GLOBAL_OFFSET_TABLE_ - $)", ];
+  2548 [label="0x000009f4
+add esp, 10h", ];
+  3578 [label="0x00000dfa
+mov ecx, eax", ];
+  2555 [label="0x000009fb
+sub esp, 0Ch", ];
+  4606 [label="0x000011fe
+add esp, 10h", ];
+  2570 [label="0x00000a0a
+add esp, 10h", ];
+  4624 [label="0x00001210
+add esp, 10h", ];
+  1560 [label="0x00000618
+push ebx", ];
+  1569 [label="0x00000621
+add ebx, (offset _GLOBAL_OFFSET_TABLE_ - $)", ];
+  2598 [label="0x00000a26
+add esp, 10h", ];
+  3625 [label="0x00000e29
+call _rand", ];
+  3630 [label="0x00000e2e
+mov ecx, eax", ];
+  1585 [label="0x00000631
+call ___gmon_start__", ];
+  4660 [label="0x00001234
+add esp, 10h", ];
+  1590 [label="0x00000636
+add esp, 8", ];
+  1600 [label="0x00000640", ];
+  2626 [label="0x00000a42
+add esp, 10h", ];
+  1616 [label="0x00000650
+jmp ds:strcmp_ptr", ];
+  4696 [label="0x00001258
+add esp, 10h", ];
+  3674 [label="0x00000e5a
+mov ecx, eax", ];
+  2654 [label="0x00000a5e
+add esp, 10h", ];
+  1632 [label="0x00000660
+jmp ds:read_ptr", ];
+  1648 [label="0x00000670
+jmp ds:printf_ptr", ];
+  2682 [label="0x00000a7a
+add esp, 10h", ];
+  1664 [label="0x00000680
+jmp ds:fgets_ptr", ];
+  3713 [label="0x00000e81
+lea eax, (aWaitingForTheR - 3F8Ch)[ebx]", ];
+  4742 [label="0x00001286
+add esp, 20h", ];
+  1680 [label="0x00000690
+jmp ds:time_ptr", ];
+  3731 [label="0x00000e93
+mov edx, [ebp+var_50]", ];
+  2707 [label="0x00000a93
+add esp, 10h", ];
+  4760 [label="0x00001298
+add esp, 10h", ];
+  1696 [label="0x000006a0
+jmp ds:sleep_ptr", ];
+  4778 [label="0x000012aa
+add esp, 10h", ];
+  3754 [label="0x00000eaa
+add esp, 10h", ];
+  2732 [label="0x00000aac
+add esp, 10h", ];
+  1712 [label="0x000006b0
+jmp ds:alarm_ptr", ];
+  3772 [label="0x00000ebc
+sub esp, 0Ch", ];
+  1728 [label="0x000006c0
+jmp ds:__stack_chk_fail_ptr", ];
+  2757 [label="0x00000ac5
+add esp, 10h", ];
+  3782 [label="0x00000ec6
+add esp, 10h", ];
+  3785 [label="0x00000ec9
+add [ebp+var_50], 1", ];
+  3789 [label="0x00000ecd
+sub esp, 0Ch", ];
+  1744 [label="0x000006d0
+jmp ds:malloc_ptr", ];
+  4824 [label="0x000012d8
+add esp, 20h", ];
+  3800 [label="0x00000ed8
+add esp, 10h", ];
+  2782 [label="0x00000ade
+add esp, 10h", ];
+  1760 [label="0x000006e0
+jmp ds:puts_ptr", ];
+  3812 [label="0x00000ee4
+cmp [ebp+var_4C], 1", ];
+  3818 [label="0x00000eea
+mov eax, [ebp+var_58]", ];
+  1776 [label="0x000006f0
+jmp ds:exit_ptr", ];
+  3826 [label="0x00000ef2
+cmp [ebp+var_4C], 2", ];
+  2807 [label="0x00000af7
+add esp, 10h", ];
+  3836 [label="0x00000efc
+mov eax, [ebp+var_58]", ];
+  1792 [label="0x00000700
+jmp ds:srand_ptr", ];
+  4870 [label="0x00001306
+add esp, 20h", ];
+  3848 [label="0x00000f08
+sub esp, 8", ];
+  1808 [label="0x00000710
+jmp ds:strlen_ptr", ];
+  2835 [label="0x00000b13
+add esp, 10h", ];
+  3870 [label="0x00000f1e
+add esp, 10h", ];
+  1824 [label="0x00000720
+jmp ds:__libc_start_main_ptr", ];
+  4902 [label="0x00001326
+add esp, 10h", ];
+  2863 [label="0x00000b2f
+add esp, 10h", ];
+  1840 [label="0x00000730
+jmp ds:setvbuf_ptr", ];
+  4920 [label="0x00001338
+add esp, 10h", ];
+  1856 [label="0x00000740
+jmp ds:fopen_ptr", ];
+  4936 [label="0x00001348
+call __stack_chk_fail_local", ];
+  2891 [label="0x00000b4b
+add esp, 10h", ];
+  4941 [label="0x0000134d
+mov ebx, [ebp+var_4]", ];
+  3917 [label="0x00000f4d
+add esp, 10h", ];
+  1872 [label="0x00000750
+jmp ds:putchar_ptr", ];
+  4946 [label="0x00001352
+push ebp", ];
+  4958 [label="0x0000135e
+add ebx, (offset _GLOBAL_OFFSET_TABLE_ - $)", ];
+  1888 [label="0x00000760
+jmp ds:rand_ptr", ];
+  3942 [label="0x00000f66
+add esp, 10h", ];
+  2919 [label="0x00000b67
+add esp, 10h", ];
+  1904 [label="0x00000770
+jmp ds:atoi_ptr", ];
+  4982 [label="0x00001376
+sub esp, 0Ch", ];
+  3958 [label="0x00000f76
+add esp, 10h", ];
+  2937 [label="0x00000b79
+add esp, 10h", ];
+  1920 [label="0x00000780
+jmp ds:__cxa_finalize_ptr", ];
+  4997 [label="0x00001385
+add esp, 10h", ];
+  1928 [label="0x00000788
+jmp ds:__gmon_start___ptr", ];
+  2953 [label="0x00000b89
+call __stack_chk_fail_local", ];
+  5005 [label="0x0000138d
+mov [ebp+var_10], eax", ];
+  2958 [label="0x00000b8e
+mov ebx, [ebp+var_4]", ];
+  1936 [label="0x00000790
+xor ebp, ebp", ];
+  3986 [label="0x00000f92
+add esp, 10h", ];
+  2963 [label="0x00000b93
+push ebp", ];
+  5014 [label="0x00001396
+cmp [ebp+var_10], 1", ];
+  5020 [label="0x0000139c
+sub esp, 4", ];
+  3998 [label="0x00000f9e
+sub esp, 8", ];
+  2975 [label="0x00000b9f
+add ebx, (offset _GLOBAL_OFFSET_TABLE_ - $)", ];
+  1952 [label="0x000007a0
+add ebx, (offset _GLOBAL_OFFSET_TABLE_ - $)", ];
+  4020 [label="0x00000fb4
+add esp, 10h", ];
+  5049 [label="0x000013b9
+add esp, 10h", ];
+  5052 [label="0x000013bc
+cmp [ebp+var_10], 2", ];
+  4033 [label="0x00000fc1
+sub esp, 4", ];
+  1985 [label="0x000007c1
+hlt", ];
+  5058 [label="0x000013c2
+cmp [ebp+var_10], 1", ];
+  1986 [label="0x000007c2", ];
+  3012 [label="0x00000bc4
+add esp, 10h", ];
+  5064 [label="0x000013c8
+mov eax, [ebp+var_10]", ];
+  2000 [label="0x000007d0", ];
+  4050 [label="0x00000fd2
+add esp, 10h", ];
+  5079 [label="0x000013d7
+call __stack_chk_fail_local", ];
+  3035 [label="0x00000bdb
+add esp, 10h", ];
+  5084 [label="0x000013dc
+mov ebx, [ebp+var_4]", ];
+  2016 [label="0x000007e0
+call __x86_get_pc_thunk_dx", ];
+  5089 [label="0x000013e1
+lea ecx, [esp+4]", ];
+  2021 [label="0x000007e5
+add edx, (offset _GLOBAL_OFFSET_TABLE_ - $)", ];
+  4071 [label="0x00000fe7
+add esp, 10h", ];
+  3048 [label="0x00000be8
+add esp, 10h", ];
+  5112 [label="0x000013f8
+add ebx, (offset _GLOBAL_OFFSET_TABLE_ - $)", ];
+  3064 [label="0x00000bf8
+call __stack_chk_fail_local", ];
+  4089 [label="0x00000ff9
+add esp, 10h", ];
+  2043 [label="0x000007fb
+mov eax, ds:(_ITM_deregisterTMCloneTable_ptr - 3F8Ch)[edx]",
+        ];
+  3069 [label="0x00000bfd
+mov ebx, [ebp+var_4]", ];
+  
+  subgraph cluster____cxa_finalize { label="___cxa_finalize";
+                                     style="rounded,filled"; 1920;
+     };
+  subgraph cluster____gmon_start__ { label="___gmon_start__";
+                                     style="rounded,filled"; 1928;
+     };
+  subgraph cluster____libc_start_main { label="___libc_start_main";
+                                        style="rounded,filled"; 1824;
+     };
+  subgraph cluster____stack_chk_fail { label="___stack_chk_fail";
+                                       style="rounded,filled"; 1728;
+     };
+  subgraph cluster___do_global_dtors_aux { label="__do_global_dtors_aux";
+                                           style="rounded,filled"; 2226;2219;2214;2211;2197;2187;2169;2160;
+     };
+  subgraph cluster___libc_csu_init { label="__libc_csu_init";
+                                     style="rounded,filled"; 5349;5339;5320;5312;5297;5273;5264;
+     };
+  subgraph cluster___stack_chk_fail_local { label="__stack_chk_fail_local";
+                                            style="rounded,filled"; 5382;5376;
+     };
+  subgraph cluster__alarm { label="_alarm"; style="rounded,filled"; 1712;
+     };
+  subgraph cluster__atoi { label="_atoi"; style="rounded,filled"; 1904;
+     };
+  subgraph cluster__exit { label="_exit"; style="rounded,filled"; 1776;
+     };
+  subgraph cluster__fgets { label="_fgets"; style="rounded,filled"; 1664;
+     };
+  subgraph cluster__fopen { label="_fopen"; style="rounded,filled"; 1856;
+     };
+  subgraph cluster__init_proc { label="_init_proc"; style="rounded,filled"; 1590;1585;1569;1560;
+     };
+  subgraph cluster__malloc { label="_malloc"; style="rounded,filled"; 1744;
+     };
+  subgraph cluster__printf { label="_printf"; style="rounded,filled"; 1648;
+     };
+  subgraph cluster__putchar { label="_putchar"; style="rounded,filled"; 1872;
+     };
+  subgraph cluster__puts { label="_puts"; style="rounded,filled"; 1760;
+     };
+  subgraph cluster__rand { label="_rand"; style="rounded,filled"; 1888;
+     };
+  subgraph cluster__read { label="_read"; style="rounded,filled"; 1632;
+     };
+  subgraph cluster__setvbuf { label="_setvbuf"; style="rounded,filled"; 1840;
+     };
+  subgraph cluster__sleep { label="_sleep"; style="rounded,filled"; 1696;
+     };
+  subgraph cluster__srand { label="_srand"; style="rounded,filled"; 1792;
+     };
+  subgraph cluster__start { label="_start"; style="rounded,filled"; 1985;1952;1936;
+     };
+  subgraph cluster__strcmp { label="_strcmp"; style="rounded,filled"; 1616;
+     };
+  subgraph cluster__strlen { label="_strlen"; style="rounded,filled"; 1808;
+     };
+  subgraph cluster__term_proc { label="_term_proc"; style="rounded,filled"; 5405;5396;
+     };
+  subgraph cluster__time { label="_time"; style="rounded,filled"; 1680;
+     };
+  subgraph cluster_banner { label="banner"; style="rounded,filled"; 2958;2953;2937;2919;2891;2863;2835;2807;2782;2757;2732;2707;2682;2654;2626;2598;2570;2555;2548;2494;2489;2449;2441;2429;2357;2345;
+     };
+  subgraph cluster_car_info { label="car_info"; style="rounded,filled"; 4941;4936;4920;4902;4870;4824;4778;4760;4742;4696;4660;4624;4606;4574;4562;
+     };
+  subgraph cluster_car_menu { label="car_menu"; style="rounded,filled"; 4089;4071;4050;4033;4020;3998;3986;3958;3942;3917;3870;3848;3836;3826;3818;3812;3800;3789;3785;3782;3772;3754;3731;3713;3674;3630;3625;3578;3534;3529;3523;3517;3511;3505;3461;3411;3406;3400;3394;3388;3379;3367;3354;3349;3343;3337;3334;3305;3299;3290;3282;3267;3229;3217;4221;4216;4203;4200;4158;4136;4128;4122;4114;4108;4103;
+     };
+  subgraph cluster_deregister_tm_clones { label="deregister_tm_clones";
+                                          style="rounded,filled"; 2043;2021;2016;2072;2062;2053;
+     };
+  subgraph cluster_frame_dummy { label="frame_dummy"; style="rounded,filled"; 2240;
+     };
+  subgraph cluster_info { label="info"; style="rounded,filled"; 4557;4552;4536;4511;4420;4406;4388;4359;4345;4327;4309;4281;4265;4238;4226;
+     };
+  subgraph cluster_main { label="main"; style="rounded,filled"; 5112;5089;5247;5242;5229;5219;5216;5187;5185;5170;5168;5163;5161;5156;5151;5146;5144;5139;5134;
+     };
+  subgraph cluster_menu { label="menu"; style="rounded,filled"; 5084;5079;5064;5058;5052;5049;5020;5014;5005;4997;4982;4958;4946;
+     };
+  subgraph cluster_race_type { label="race_type"; style="rounded,filled"; 3212;3207;3192;3186;3180;3177;3148;3142;3133;3125;3110;3086;3074;
+     };
+  subgraph cluster_read_int { label="read_int"; style="rounded,filled"; 2340;2335;2320;2305;2265;2253;
+     };
+  subgraph cluster_register_tm_clones { label="register_tm_clones";
+                                        style="rounded,filled"; 2146;2143;2136;2126;2085;2080;
+     };
+  subgraph cluster_setup { label="setup"; style="rounded,filled"; 3069;3064;3048;3035;3012;2975;2963;
+     };
+  
+  3074 -> 3086;
+  2053 -> 2062;
+  4103 -> 4203;
+  4108 -> 4114;
+  4108 -> 4122;
+  5134 -> 5139;
+  3086 -> 3110;
+  4114 -> 4122;
+  4114 -> 4136;
+  5139 -> 5144;
+  5144 -> 5219;
+  5146 -> 5151;
+  4122 -> 4128;
+  4122 -> 4203;
+  5151 -> 5156;
+  5151 -> 5163;
+  4128 -> 4136;
+  4128 -> 4203;
+  2080 -> 2085;
+  5156 -> 5161;
+  5156 -> 5170;
+  2085 -> 2126;
+  2085 -> 2146;
+  3110 -> 3125;
+  4136 -> 4158;
+  5161 -> 5187;
+  5163 -> 5168;
+  5168 -> 5219;
+  5170 -> 5185;
+  3125 -> 3133;
+  3133 -> 3142;
+  3133 -> 3180;
+  4158 -> 4200;
+  5185 -> 5219;
+  5187 -> 5216;
+  3142 -> 3148;
+  3142 -> 3180;
+  3148 -> 3177;
+  2126 -> 2136;
+  2126 -> 2146;
+  2136 -> 2143;
+  2143 -> 2146;
+  5216 -> 5219;
+  5219 -> 5146;
+  5219 -> 5229;
+  4200 -> 4203;
+  3177 -> 3180;
+  4203 -> 4216;
+  4203 -> 4221;
+  3180 -> 3186;
+  3180 -> 3192;
+  5229 -> 5242;
+  5229 -> 5247;
+  2160 -> 2169;
+  3186 -> 3110;
+  3186 -> 3192;
+  4216 -> 4221;
+  3192 -> 3207;
+  3192 -> 3212;
+  2169 -> 2187;
+  2169 -> 2226;
+  5242 -> 5247;
+  4226 -> 4238;
+  3207 -> 3212;
+  2187 -> 2197;
+  2187 -> 2214;
+  4238 -> 4265;
+  5264 -> 5273;
+  3217 -> 3229;
+  2197 -> 2211;
+  5273 -> 5297;
+  3229 -> 3267;
+  2211 -> 2214;
+  2214 -> 2219;
+  4265 -> 4281;
+  2219 -> 2226;
+  5297 -> 5312;
+  5297 -> 5349;
+  4281 -> 4309;
+  5312 -> 5320;
+  2240 -> 2080;
+  3267 -> 3282;
+  5320 -> 5339;
+  2253 -> 2265;
+  3282 -> 3290;
+  4309 -> 4327;
+  2265 -> 2305;
+  3290 -> 3299;
+  3290 -> 3337;
+  5339 -> 5320;
+  5339 -> 5349;
+  3299 -> 3305;
+  3299 -> 3337;
+  4327 -> 4345;
+  3305 -> 3334;
+  4345 -> 4359;
+  5376 -> 5382;
+  2305 -> 2320;
+  5382 -> 5396;
+  3334 -> 3337;
+  4359 -> 4388;
+  3337 -> 3343;
+  3337 -> 3349;
+  3343 -> 3267;
+  3343 -> 3349;
+  2320 -> 2335;
+  2320 -> 2340;
+  5396 -> 5405;
+  3349 -> 3354;
+  3354 -> 3367;
+  2335 -> 2340;
+  4388 -> 4406;
+  3367 -> 3379;
+  2345 -> 2357;
+  3379 -> 3388;
+  3379 -> 3394;
+  2357 -> 2429;
+  4406 -> 4420;
+  3388 -> 3394;
+  3388 -> 3406;
+  3394 -> 3400;
+  3394 -> 3505;
+  4420 -> 4511;
+  3400 -> 3406;
+  3400 -> 3505;
+  3406 -> 3411;
+  3411 -> 3461;
+  2429 -> 2441;
+  3461 -> 3713;
+  2441 -> 2449;
+  2449 -> 2489;
+  4511 -> 4536;
+  3505 -> 3511;
+  3505 -> 3517;
+  3511 -> 3517;
+  3511 -> 3529;
+  4536 -> 4552;
+  4536 -> 4557;
+  2489 -> 2494;
+  3517 -> 3523;
+  3517 -> 3625;
+  2494 -> 2548;
+  3523 -> 3529;
+  3523 -> 3625;
+  4552 -> 4557;
+  3529 -> 3534;
+  3534 -> 3578;
+  4562 -> 4574;
+  4574 -> 4606;
+  2548 -> 2489;
+  2548 -> 2555;
+  3578 -> 3713;
+  2555 -> 2570;
+  4606 -> 4624;
+  2570 -> 2598;
+  4624 -> 4660;
+  1560 -> 1569;
+  1569 -> 1585;
+  1569 -> 1590;
+  2598 -> 2626;
+  3625 -> 3630;
+  3630 -> 3674;
+  1585 -> 1590;
+  4660 -> 4696;
+  2626 -> 2654;
+  1616 -> 16408;
+  4696 -> 4742;
+  3674 -> 3713;
+  2654 -> 2682;
+  1632 -> 16412;
+  1648 -> 16416;
+  2682 -> 2707;
+  1664 -> 16420;
+  3713 -> 3789;
+  4742 -> 4760;
+  1680 -> 16424;
+  3731 -> 3754;
+  2707 -> 2732;
+  4760 -> 4778;
+  1696 -> 16428;
+  4778 -> 4824;
+  3754 -> 3772;
+  3754 -> 3785;
+  2732 -> 2757;
+  1712 -> 16432;
+  3772 -> 3782;
+  1728 -> 16436;
+  2757 -> 2782;
+  3782 -> 3785;
+  3785 -> 3789;
+  3789 -> 3800;
+  1744 -> 16444;
+  4824 -> 4870;
+  3800 -> 3731;
+  3800 -> 3812;
+  2782 -> 2807;
+  1760 -> 16448;
+  3812 -> 3818;
+  3812 -> 3826;
+  3818 -> 3826;
+  3818 -> 3848;
+  1776 -> 16452;
+  3826 -> 3836;
+  3826 -> 4108;
+  2807 -> 2835;
+  3836 -> 3848;
+  3836 -> 4108;
+  1792 -> 16456;
+  4870 -> 4902;
+  3848 -> 3870;
+  1808 -> 16460;
+  2835 -> 2863;
+  3870 -> 3917;
+  1824 -> 16464;
+  4902 -> 4920;
+  2863 -> 2891;
+  1840 -> 16472;
+  4920 -> 4936;
+  4920 -> 4941;
+  1856 -> 16476;
+  4936 -> 4941;
+  2891 -> 2919;
+  3917 -> 3942;
+  1872 -> 16480;
+  4946 -> 4958;
+  4958 -> 4982;
+  1888 -> 16484;
+  3942 -> 3958;
+  2919 -> 2937;
+  1904 -> 16492;
+  4982 -> 4997;
+  3958 -> 3986;
+  2937 -> 2953;
+  2937 -> 2958;
+  1920 -> 16440;
+  4997 -> 5005;
+  1928 -> 16500;
+  2953 -> 2958;
+  5005 -> 5014;
+  5005 -> 5052;
+  1936 -> 1952;
+  3986 -> 3998;
+  3986 -> 4033;
+  2963 -> 2975;
+  5014 -> 5020;
+  5014 -> 5052;
+  5020 -> 5049;
+  3998 -> 4020;
+  2975 -> 3012;
+  1952 -> 1985;
+  4020 -> 4033;
+  5049 -> 5052;
+  5052 -> 5058;
+  5052 -> 5064;
+  4033 -> 4050;
+  5058 -> 4982;
+  5058 -> 5064;
+  3012 -> 3035;
+  5064 -> 5079;
+  5064 -> 5084;
+  4050 -> 4071;
+  5079 -> 5084;
+  3035 -> 3048;
+  2016 -> 2021;
+  5089 -> 5112;
+  2021 -> 2043;
+  2021 -> 2072;
+  4071 -> 4089;
+  3048 -> 3064;
+  3048 -> 3069;
+  5112 -> 5134;
+  3064 -> 3069;
+  4089 -> 4103;
+  2043 -> 2053;
+  2043 -> 2072;
+  
+  }

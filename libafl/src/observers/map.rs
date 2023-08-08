@@ -2184,7 +2184,7 @@ pub mod binfuzz {
         hash::{BuildHasher, Hasher},
     };
     use std::prelude::v1::String;
-    use ahash::HashMap;
+    use std::collections::HashMap;
     use serde::{Deserialize, Serialize};
 
     use crate::{
@@ -2227,7 +2227,7 @@ pub mod binfuzz {
         name: String
     }
 
-    impl<S, M> Observer<S> for DistancesMapObserver<M>
+    impl<'a, S, M> Observer<S> for DistancesMapObserver<'a, M>
         where
             M: MapObserver<Entry = u8> + Observer<S> + AsMutSlice<Entry = u8>,
             S: UsesInput,
@@ -2266,7 +2266,7 @@ pub mod binfuzz {
         }
     }
 
-    impl<M> Named for DistancesMapObserver<M>
+    impl<'a, M> Named for DistancesMapObserver<'a, M>
         where
             M: Named + Serialize + serde::de::DeserializeOwned,
     {
@@ -2276,7 +2276,7 @@ pub mod binfuzz {
         }
     }
 
-    impl<M> HasLen for DistancesMapObserver<M>
+    impl<'a, M> HasLen for DistancesMapObserver<'a, M>
         where
             M: MapObserver,
     {
@@ -2286,9 +2286,9 @@ pub mod binfuzz {
         }
     }
 
-    impl<M> MapObserver for DistancesMapObserver<M>
+    impl<'a,M> MapObserver for DistancesMapObserver<'a,M>
         where
-            M: MapObserver<Entry = u8>,
+            M: MapObserver<Entry = f64>,
     {
         type Entry = f64;
 
@@ -2308,8 +2308,10 @@ pub mod binfuzz {
         }
 
         #[inline]
-        fn get_mut(&mut self, idx: usize) -> &mut u8 {
-            self.base.get_mut(idx)
+        fn get_mut(&mut self, idx: usize) -> &mut f64 {
+            unsafe {
+                DISTANCES.get_unchecked_mut(idx)
+            }
         }
 
         /// Count the set bytes in the map

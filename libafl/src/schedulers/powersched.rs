@@ -41,6 +41,12 @@ pub struct SchedulerMetadata {
     queue_cycles: u64,
     /// The vector to contain the frequency of each execution path.
     n_fuzz: Vec<u32>,
+    /// The minimum distance to target functions
+    min_d: f64,
+    /// The maximum distance to target functions
+    max_d: f64,
+    /// The distances to the target functions for each execution path
+    distances: Vec<f64>
 }
 
 /// The metadata for runs in the calibration stage.
@@ -57,6 +63,9 @@ impl SchedulerMetadata {
             bitmap_entries: 0,
             queue_cycles: 0,
             n_fuzz: vec![0; N_FUZZ_SIZE],
+            min_d: f64::MAX,
+            max_d: f64::MIN,
+            distances: vec![0.0; N_FUZZ_SIZE]
         }
     }
 
@@ -142,6 +151,40 @@ impl SchedulerMetadata {
     #[must_use]
     pub fn n_fuzz_mut(&mut self) -> &mut [u32] {
         &mut self.n_fuzz
+    }
+
+    /// Gets the minD
+    #[must_use]
+    pub fn mid_d(&self) -> &f64{
+        &self.min_d
+    }
+
+    /// Sets the minD
+    #[must_use]
+    pub fn mid_d_mut(&mut self) -> &mut f64{
+        &mut self.min_d
+    }
+
+    /// Gets the maxD
+    #[must_use]
+    pub fn max_d(&self) -> &f64{
+        &self.max_d
+    }
+
+    /// Gets the maxD
+    #[must_use]
+    pub fn max_d_mut(&mut self) -> &mut f64{
+        &mut self.max_d
+    }
+
+    ///Gets the distances
+    pub fn distances(&self) ->&[f64] {
+        &self.distances
+    }
+
+    ///Sets the distances
+    pub fn distances_mut(&self) ->&mut [f64] {
+        self.distances.as_mut_slice()
     }
 }
 
@@ -300,6 +343,17 @@ where
         hash %= psmeta.n_fuzz().len(); 
         // Update the path frequency
         psmeta.n_fuzz_mut()[hash] = psmeta.n_fuzz()[hash].saturating_add(1);
+
+        if self.strat == PowerSchedule::AFLGo {
+            let observer_vec: Vec<<O as MapObserver>::Entry> = observer.to_vec();
+            let sum = observer_vec.iter().sum::<f64>();
+            if sum > psmeta.max_d {
+                *psmeta.max_d_mut() = sum;
+            }else if sum < psmeta.min_d {
+                *psmeta.mid_d_mut() = sum;
+            }
+            psmeta.distances_mut()[hash] = sum;
+        }
 
         self.last_hash = hash;
 
