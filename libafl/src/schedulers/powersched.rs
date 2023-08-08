@@ -337,8 +337,19 @@ where
             .ok_or_else(|| Error::key_not_found("MapObserver not found".to_string()))?;
 
         let mut hash = observer.hash() as usize;
+        
+        let distances = observer.to_vec();
+        let distance_sum = distances.iter().sum();
 
         let psmeta = state.metadata_mut::<SchedulerMetadata>()?;
+
+        if psmeta.min_d == f64::MAX || psmeta.min_d > distance_sum {
+            psmeta.min_d = distance_sum;
+        }
+
+        if psmeta.max_d == f64::MIN || psmeta.max_d < distance_sum {
+            psmeta.max_d = distance_sum;
+        }
 
         hash %= psmeta.n_fuzz().len(); 
         // Update the path frequency

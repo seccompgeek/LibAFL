@@ -2229,7 +2229,7 @@ pub mod binfuzz {
 
     impl<'a, S, M> Observer<S> for DistancesMapObserver<'a, M>
         where
-            M: MapObserver<Entry = u8> + Observer<S> + AsMutSlice<Entry = u8>,
+            M: MapObserver<Entry = f64> + Observer<S> + AsMutSlice<Entry = f64>,
             S: UsesInput,
     {
         #[inline]
@@ -2303,8 +2303,10 @@ pub mod binfuzz {
         }
 
         #[inline]
-        fn get(&self, idx: usize) -> &u8 {
-            self.base.get(idx)
+        fn get(&self, idx: usize) -> &f64 {
+            unsafe {
+                DISTANCES.get_unchecked(idx)
+            }
         }
 
         #[inline]
@@ -2328,8 +2330,10 @@ pub mod binfuzz {
         fn hash(&self) -> u64 {
             self.base.hash()
         }
-        fn to_vec(&self) -> Vec<u8> {
-            self.base.to_vec()
+        fn to_vec(&self) -> Vec<f64> {
+            unsafe {
+                DISTANCES.clone()
+            }
         }
 
         fn how_many_set(&self, indexes: &[usize]) -> usize {
@@ -2353,7 +2357,9 @@ pub mod binfuzz {
         type Entry = <M as AsSlice>::Entry;
         #[inline]
         fn as_slice(&self) -> &[Self::Entry] {
-            self.base.as_slice()
+            unsafe {
+                DISTANCES.as_slice()
+            }
         }
     }
 
@@ -2364,7 +2370,9 @@ pub mod binfuzz {
         type Entry = <M as AsMutSlice>::Entry;
         #[inline]
         fn as_mut_slice(&mut self) -> &mut [Self::Entry] {
-            self.base.as_mut_slice()
+            unsafe {
+                DISTANCES.as_mut_slice()
+            }
         }
     }
 
