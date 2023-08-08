@@ -351,17 +351,6 @@ where
         psmeta.n_fuzz_mut()[hash] = psmeta.n_fuzz()[hash].saturating_add(1);
         psmeta.distances_mut()[hash] = observer.get_distance();
 
-        if self.strat == PowerSchedule::AFLGo {
-            let observer_vec: Vec<<O as MapObserver>::Entry> = observer.to_vec();
-            let sum = observer_vec.iter().sum::<f64>();
-            if sum > psmeta.max_d {
-                *psmeta.max_d_mut() = sum;
-            }else if sum < psmeta.min_d {
-                *psmeta.mid_d_mut() = sum;
-            }
-            psmeta.distances_mut()[hash] = sum;
-        }
-
         self.last_hash = hash;
 
         Ok(())
