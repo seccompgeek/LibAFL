@@ -3,7 +3,7 @@ use alloc::string::{String, ToString};
 use core::marker::PhantomData;
 
 use crate::{
-    bolts::{HasLen, HasRefCnt},
+    bolts::{HasLen, HasRefCnt, current_time},
     corpus::{Corpus, SchedulerTestcaseMetadata, Testcase},
     feedbacks::MapIndexesMetadata,
     schedulers::{
@@ -235,7 +235,18 @@ where
                 PowerSchedule::AFLGo => {
                     let min_d = psmeta.mid_d();
                     let max_d = psmeta.max_d();
-                    let 
+                    let distance = psmeta.distances()[tcmeta.n_fuzz_entry()];
+                    let dstb = if max_d == min_d {
+                        1.0
+                    } else{
+                        (distance - min_d) / (max_d - min_d)
+                    };
+                    let t = current_time().as_secs() as f64;
+                    let tx = 40.0 * 60.0;
+                    let base = 20.0;
+                    let texp =  f64::powf(base, -t/tx);// base.powf(-t/tx);
+                    let pstb = 10.0 * (1.0 - dstb)*(1.0 - texp) + 0.5*texp - 5.0;
+                    factor = f64::powf(2.0, pstb);
                 }
             }
         }

@@ -5,6 +5,7 @@ use std::error::Error;
 use libafl::observers::binfuzz::DistancesMapObserver;
 
 mod cfgbuilder;
+mod distance_feedback;
 
 use cfgbuilder::ICFG;
 

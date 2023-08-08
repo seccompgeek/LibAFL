@@ -45,6 +45,8 @@ pub struct SchedulerMetadata {
     min_d: f64,
     /// The max distance to target functions in PFuzz
     max_d: f64,
+    /// The vector to contain the distance of each execution path in PFuzz
+    distances: Vec<f64>
 }
 
 /// The metadata for runs in the calibration stage.
@@ -62,7 +64,8 @@ impl SchedulerMetadata {
             queue_cycles: 0,
             n_fuzz: vec![0; N_FUZZ_SIZE],
             min_d: f64::MAX,
-            max_d: f64::MIN
+            max_d: f64::MIN,
+            distances: vec![f64::MAX; N_FUZZ_SIZE]
         }
     }
 
@@ -160,6 +163,18 @@ impl SchedulerMetadata {
     #[must_use]
     pub fn max_d(&self) -> &f64 {
         &self.max_d
+    }
+
+    /// Gets the distances in PFuzz
+    #[must_use]
+    pub fn distances(&self) -> &[f64] {
+        &self.distances
+    }
+
+    /// Sets the distances in PFuzz
+    #[must_use]
+    pub fn distances_mut(&mut self) -> &mut [f64] {
+        &mut self.distances
     }
 }
 
@@ -313,8 +328,7 @@ where
 
         let mut hash = observer.hash() as usize;
         
-        let distances = observer.to_vec();
-        let distance_sum = distances.iter().sum();
+        let distance_sum = observer.get_distance();
 
         let psmeta = state.metadata_mut::<SchedulerMetadata>()?;
 
@@ -329,6 +343,7 @@ where
         hash %= psmeta.n_fuzz().len(); 
         // Update the path frequency
         psmeta.n_fuzz_mut()[hash] = psmeta.n_fuzz()[hash].saturating_add(1);
+        psmeta.distances_mut()[hash] = observer.get_distance();
 
         self.last_hash = hash;
 

@@ -9,8 +9,9 @@ use core::{
     hash::{BuildHasher, Hasher},
     iter::Flatten,
     marker::PhantomData,
-    slice::{from_raw_parts, Iter, IterMut},
+    slice::{from_raw_parts, Iter, IterMut, SlicePattern},
 };
+use std::collections::HashMap;
 
 use ahash::RandomState;
 use intervaltree::IntervalTree;
@@ -28,6 +29,23 @@ use crate::{
     observers::{DifferentialObserver, Observer, ObserversTuple},
     Error,
 };
+
+/// edge:distance map for PFuzz
+static mut DISTANCES: HashMap<usize,f64> = HashMap::default();
+
+/// Get the edge:distance map in PFuzz
+pub fn distances() -> &'static HashMap<usize,f64> {
+    unsafe {
+        &DISTANCES
+    }
+}
+
+/// Set the edge:distance map in PFuzz
+pub fn distances_mut() -> &'static mut HashMap<usize, f64> {
+    unsafe {
+        &mut DISTANCES
+    }
+}
 
 /// Hitcounts class lookup
 pub static COUNT_CLASS_LOOKUP: [u8; 256] = [
@@ -113,6 +131,12 @@ pub trait MapObserver: HasLen + Named + Serialize + serde::de::DeserializeOwned 
 
     /// Get these observer's contents as [`Vec`]
     fn to_vec(&self) -> Vec<Self::Entry>;
+
+    /// Get the distance observed in case of PFuzz
+    /// This is f64::MAX except in PFuzz
+    fn get_distance(&self) -> f64 {
+        f64::MAX
+    }
 
     /// Get the number of set entries with the specified indexes
     fn how_many_set(&self, indexes: &[usize]) -> usize;
@@ -1214,6 +1238,7 @@ where
     M: Serialize,
 {
     base: M,
+    distance: f64,
 }
 
 impl<S, M> Observer<S> for HitcountsMapObserver<M>
@@ -1251,6 +1276,17 @@ where
                 *item = *COUNT_CLASS_LOOKUP_16.get_unchecked(*item as usize);
             }
         }
+
+        let distances = distances();
+        let mut distance = 0.0;
+        for (i, item) in map.iter().enumerate() {
+            if *item > 0 && distances.contains_key(&i) {
+                distance += 1.0 / *distances.get(&i).unwrap();
+            }else{
+                distance += 1.0 / f64::MAX;
+            }
+        }
+        self.distance = 1.0 / distance;
         self.base.post_exec(state, input, exit_kind)
     }
 }
@@ -1309,6 +1345,7 @@ where
     /// Reset the map
     #[inline]
     fn reset_map(&mut self) -> Result<(), Error> {
+        self.distance = f64::MAX;
         self.base.reset_map()
     }
 
@@ -1317,6 +1354,10 @@ where
     }
     fn to_vec(&self) -> Vec<u8> {
         self.base.to_vec()
+    }
+
+    fn get_distance(&self) -> f64 {
+        self.distance
     }
 
     fn how_many_set(&self, indexes: &[usize]) -> usize {
@@ -1362,7 +1403,7 @@ where
     /// Creates a new [`MapObserver`]
     pub fn new(base: M) -> Self {
         init_count_class_16();
-        Self { base }
+        Self { base, distance: f64::MAX }
     }
 }
 
@@ -2170,304 +2211,6 @@ where
             map,
             name: name.to_string(),
             initial,
-        }
-    }
-}
-
-/// `BinFuzzObserver`
-#[allow(missing_docs)]
-pub mod binfuzz {
-
-    use alloc::vec::Vec;
-    use core::{
-        fmt::Debug,
-        hash::{BuildHasher, Hasher},
-    };
-    use std::prelude::v1::String;
-    use ahash::HashMap;
-    use serde::{Deserialize, Serialize};
-
-    use crate::{
-        bolts::{
-            tuples::Named,
-            AsIter, AsIterMut, AsMutSlice, AsSlice, HasLen, Truncate,
-        },
-        executors::ExitKind,
-        inputs::UsesInput,
-        observers::{DifferentialObserver, Observer, ObserversTuple, MapObserver, HitcountsMapObserver},
-        Error,
-    };
-
-    static mut DISTANCE_MAP: HashMap<usize, Vec<f64>> = HashMap::default();
-
-    static mut DISTANCES: Vec<f64> = vec![];
-
-    fn get_distances_of(edge_id: usize) -> Option<&'static mut [f64]> {
-        unsafe {
-            match DISTANCE_MAP.get_mut(&edge_id) {
-                Some(distances) => {
-                    Some(distances.as_mut_slice())
-                },
-                _ => None
-            }
-        }
-    }
-
-    /// Map observer with AFL-like hitcounts postprocessing
-    ///
-    /// [`MapObserver`]s that are not slice-backed,
-    /// such as [`MultiMapObserver`], can use [`HitcountsIterableMapObserver`] instead.
-    #[derive(Serialize, Deserialize, Clone, Debug)]
-    #[serde(bound = "M: serde::de::DeserializeOwned")]
-    pub struct DistancesMapObserver<'a, M>
-        where
-            M: Serialize,
-    {
-        base: &'a HitcountsMapObserver<M>,
-        name: String
-    }
-
-    impl<S, M> Observer<S> for DistancesMapObserver<M>
-        where
-            M: MapObserver<Entry = f64> + Observer<S> + AsMutSlice<Entry = f64>,
-            S: UsesInput,
-    {
-        #[inline]
-        fn pre_exec(&mut self, state: &mut S, input: &S::Input) -> Result<(), Error> {
-            self.base.pre_exec(state, input)
-        }
-
-        #[inline]
-        #[allow(clippy::cast_ptr_alignment)]
-        fn post_exec(
-            &mut self,
-            state: &mut S,
-            input: &S::Input,
-            exit_kind: &ExitKind,
-        ) -> Result<(), Error> {
-            self.base.post_exec(state, input,exit_kind)?;
-            let map = self.base.as_mut_slice();
-
-            unsafe {
-                while map.len() > DISTANCES.len() {
-                    DISTANCES.push(f64::MAX);
-                }
-            }
-            for (i, item) in map.iter().enumerate() {
-                if let Some(edges) = get_distances_of(i) {
-                    let counts = if item == 0 {u8::MAX} else {item} as f64;
-                    let sum = edges.iter().sum();
-                    unsafe {
-                        *DISTANCES.get_unchecked_mut(i) = (1.0/counts) * sum;
-                    }
-                }
-            }
-            Ok(())
-        }
-    }
-
-    impl<M> Named for DistancesMapObserver<M>
-        where
-            M: Named + Serialize + serde::de::DeserializeOwned,
-    {
-        #[inline]
-        fn name(&self) -> &str {
-            &self.name
-        }
-    }
-
-    impl<M> HasLen for DistancesMapObserver<M>
-        where
-            M: MapObserver,
-    {
-        #[inline]
-        fn len(&self) -> usize {
-            self.base.len()
-        }
-    }
-
-    impl<M> MapObserver for DistancesMapObserver<M>
-        where
-            M: MapObserver<Entry = f64>,
-    {
-        type Entry = f64;
-
-        #[inline]
-        fn initial(&self) -> f64 {
-            f64::MAX
-        }
-
-        #[inline]
-        fn usable_count(&self) -> usize {
-            self.base.usable_count()
-        }
-
-        #[inline]
-        fn get(&self, idx: usize) -> &f64 {
-            unsafe {
-                DISTANCES.get_unchecked(idx)
-            }
-        }
-
-        #[inline]
-        fn get_mut(&mut self, idx: usize) -> &mut f64 {
-            unsafe {
-                DISTANCES.get_unchecked_mut(idx)
-            }
-        }
-
-        /// Count the set bytes in the map
-        fn count_bytes(&self) -> u64 {
-            self.base.count_bytes()
-        }
-
-        /// Reset the map
-        #[inline]
-        fn reset_map(&mut self) -> Result<(), Error> {
-            self.base.reset_map()
-        }
-
-        fn hash(&self) -> u64 {
-            self.base.hash()
-        }
-        fn to_vec(&self) -> Vec<f64> {
-            unsafe {
-                DISTANCES.clone()
-            }
-        }
-
-        fn how_many_set(&self, indexes: &[usize]) -> usize {
-            self.base.how_many_set(indexes)
-        }
-    }
-
-    impl<M> Truncate for DistancesMapObserver<M>
-        where
-            M: Named + Serialize + serde::de::DeserializeOwned + Truncate,
-    {
-        fn truncate(&mut self, new_len: usize) {
-            self.base.truncate(new_len);
-        }
-    }
-
-    impl<M> AsSlice for DistancesMapObserver<M>
-        where
-            M: MapObserver + AsSlice,
-    {
-        type Entry = <M as AsSlice>::Entry;
-        #[inline]
-        fn as_slice(&self) -> &[Self::Entry] {
-            unsafe {
-                DISTANCES.as_slice()
-            }
-        }
-    }
-
-    impl<M> AsMutSlice for DistancesMapObserver<M>
-        where
-            M: MapObserver + AsMutSlice,
-    {
-        type Entry = <M as AsMutSlice>::Entry;
-        #[inline]
-        fn as_mut_slice(&mut self) -> &mut [Self::Entry] {
-            unsafe {
-                DISTANCES.as_mut_slice()
-            }
-        }
-    }
-
-    impl<'a, M> DistancesMapObserver<'a, M>
-        where
-            M: Serialize + serde::de::DeserializeOwned,
-    {
-        /// Creates a new [`MapObserver`]
-        pub fn new(base: &'a HitcountsMapObserver<M> , name: &str) -> Self {
-            Self { base, name: String::from(name) }
-        }
-    }
-
-    impl<'it, M> AsIter<'it> for DistancesMapObserver<M>
-        where
-            M: Named + Serialize + serde::de::DeserializeOwned + AsIter<'it, Item = u8>,
-    {
-        type Item = f64;
-        type IntoIter = <M as AsIter<'it>>::IntoIter;
-
-        fn as_iter(&'it self) -> Self::IntoIter {
-            unsafe {
-                DISTANCES.into_iter()
-            }
-        }
-    }
-
-    impl<'it, M> AsIterMut<'it> for DistancesMapObserver<M>
-        where
-            M: Named + Serialize + serde::de::DeserializeOwned + AsIterMut<'it, Item = u8>,
-    {
-        type Item = f64;
-        type IntoIter = <M as AsIterMut<'it>>::IntoIter;
-
-        fn as_iter_mut(&'it mut self) -> Self::IntoIter {
-            unsafe {
-                DISTANCES.as_mut_slice().into_iter()
-            }
-        }
-    }
-
-    impl<'it, M> IntoIterator for &'it DistancesMapObserver<M>
-        where
-            M: Named + Serialize + serde::de::DeserializeOwned,
-            &'it M: IntoIterator<Item = &'it u8>,
-    {
-        type Item = &'it f64;
-        type IntoIter = <&'it M as IntoIterator>::IntoIter;
-
-        fn into_iter(self) -> Self::IntoIter {
-            unsafe {
-                DISTANCES.into_iter()
-            }
-        }
-    }
-
-    impl<'it, M> IntoIterator for &'it mut DistancesMapObserver<M>
-        where
-            M: Named + Serialize + serde::de::DeserializeOwned,
-            &'it mut M: IntoIterator<Item = &'it mut f64>,
-    {
-        type Item = &'it mut f64;
-        type IntoIter = <&'it mut M as IntoIterator>::IntoIter;
-
-        fn into_iter(self) -> Self::IntoIter {
-            unsafe {
-                DISTANCES.into_iter()
-            }
-        }
-    }
-
-    impl<M, OTA, OTB, S> DifferentialObserver<OTA, OTB, S> for DistancesMapObserver<M>
-        where
-            M: DifferentialObserver<OTA, OTB, S>
-            + MapObserver<Entry = u8>
-            + Serialize
-            + AsMutSlice<Entry = u8>,
-            OTA: ObserversTuple<S>,
-            OTB: ObserversTuple<S>,
-            S: UsesInput,
-    {
-        fn pre_observe_first(&mut self, observers: &mut OTA) -> Result<(), Error> {
-            self.base.pre_observe_first(observers)
-        }
-
-        fn post_observe_first(&mut self, observers: &mut OTA) -> Result<(), Error> {
-            self.base.post_observe_first(observers)
-        }
-
-        fn pre_observe_second(&mut self, observers: &mut OTB) -> Result<(), Error> {
-            self.base.pre_observe_second(observers)
-        }
-
-        fn post_observe_second(&mut self, observers: &mut OTB) -> Result<(), Error> {
-            self.base.post_observe_second(observers)
         }
     }
 }
