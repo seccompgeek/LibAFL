@@ -41,9 +41,9 @@ pub struct SchedulerMetadata {
     queue_cycles: u64,
     /// The vector to contain the frequency of each execution path.
     n_fuzz: Vec<u32>,
-    /// The mid distance to target functions in PFuzz
+    /// The minimum distance to target functions
     min_d: f64,
-    /// The max distance to target functions in PFuzz
+    /// The maximum distance to target functions
     max_d: f64,
     /// The vector to contain the distance of each execution path in PFuzz
     distances: Vec<f64>
@@ -153,15 +153,21 @@ impl SchedulerMetadata {
         &mut self.n_fuzz
     }
 
-    /// Gets the mid distance to target functions in PFuzz
+    /// Gets the minD
     #[must_use]
-    pub fn mid_d(&self) -> &f64 {
+    pub fn mid_d(&self) -> &f64{
         &self.min_d
     }
 
-    /// Gets the max distance to target functions in PFuzz
+    /// Sets the minD
     #[must_use]
-    pub fn max_d(&self) -> &f64 {
+    pub fn mid_d_mut(&mut self) -> &mut f64{
+        &mut self.min_d
+    }
+
+    /// Gets the maxD
+    #[must_use]
+    pub fn max_d(&self) -> &f64{
         &self.max_d
     }
 
@@ -344,6 +350,17 @@ where
         // Update the path frequency
         psmeta.n_fuzz_mut()[hash] = psmeta.n_fuzz()[hash].saturating_add(1);
         psmeta.distances_mut()[hash] = observer.get_distance();
+
+        if self.strat == PowerSchedule::AFLGo {
+            let observer_vec: Vec<<O as MapObserver>::Entry> = observer.to_vec();
+            let sum = observer_vec.iter().sum::<f64>();
+            if sum > psmeta.max_d {
+                *psmeta.max_d_mut() = sum;
+            }else if sum < psmeta.min_d {
+                *psmeta.mid_d_mut() = sum;
+            }
+            psmeta.distances_mut()[hash] = sum;
+        }
 
         self.last_hash = hash;
 

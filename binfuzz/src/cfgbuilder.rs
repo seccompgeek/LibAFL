@@ -1,3 +1,8 @@
+/// This is the CFG builder module for PFuzz.
+/// We need to compute df(n,Tf), db(m,Tb) and prepare the data for
+/// f = 2^(10(p(s,Tb)-0.5) as defined by AFLGo.
+/// For these, we need to compute the function and basic block distances to target functions.
+
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use goblin::mach::Mach::Binary;
 use libafl_cc::cfg::ControlFlowGraph;
@@ -9,6 +14,10 @@ impl HasWeight<ICFGMetadata> for ICFGMetadata {
     fn compute(metadata: Option<&ICFGMetadata>) -> u32 {
         1
     }
+}
+
+pub struct CFG {
+    funcs: HashMap<usize, String>,
 }
 
 pub struct ICFG {
