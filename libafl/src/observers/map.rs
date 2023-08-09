@@ -10,7 +10,9 @@ use core::{
     iter::Flatten,
     marker::PhantomData,
     slice::{from_raw_parts, Iter, IterMut, SlicePattern},
+    slice::{from_raw_parts, Iter, IterMut, SlicePattern},
 };
+use std::collections::HashMap;
 
 use ahash::RandomState;
 use intervaltree::IntervalTree;
@@ -28,6 +30,23 @@ use crate::{
     observers::{DifferentialObserver, Observer, ObserversTuple},
     Error,
 };
+
+/// edge:distance map for PFuzz
+static mut DISTANCES: HashMap<usize,f64> = HashMap::default();
+
+/// Get the edge:distance map in PFuzz
+pub fn distances() -> &'static HashMap<usize,f64> {
+    unsafe {
+        &DISTANCES
+    }
+}
+
+/// Set the edge:distance map in PFuzz
+pub fn distances_mut() -> &'static mut HashMap<usize, f64> {
+    unsafe {
+        &mut DISTANCES
+    }
+}
 
 /// Hitcounts class lookup
 pub static COUNT_CLASS_LOOKUP: [u8; 256] = [
@@ -144,6 +163,12 @@ pub trait MapObserver: HasLen + Named + Serialize + serde::de::DeserializeOwned 
 
     /// Get these observer's contents as [`Vec`]
     fn to_vec(&self) -> Vec<Self::Entry>;
+
+    /// Get the distance observed in case of PFuzz
+    /// This is f64::MAX except in PFuzz
+    fn get_distance(&self) -> f64 {
+        f64::MAX
+    }
 
     /// Get the number of set entries with the specified indexes
     fn how_many_set(&self, indexes: &[usize]) -> usize;
@@ -1245,6 +1270,7 @@ where
     M: Serialize,
 {
     base: M,
+    distance: f64,
 }
 
 impl<S, M> Observer<S> for HitcountsMapObserver<M>
@@ -1283,16 +1309,16 @@ where
             }
         }
 
-        unsafe {
-            if len > DISTANCES.len() {
-                DISTANCES.resize(len, f64::MAX);
-                for (_i, item) in map.iter().enumerate() {
-                    if item > 0 {
-                        
-                    }
-                }
+        let distances = distances();
+        let mut distance = 0.0;
+        for (i, item) in map.iter().enumerate() {
+            if *item > 0 && distances.contains_key(&i) {
+                distance += 1.0 / *distances.get(&i).unwrap();
+            }else{
+                distance += 1.0 / f64::MAX;
             }
         }
+        self.distance = 1.0 / distance;
         self.base.post_exec(state, input, exit_kind)
     }
 }
@@ -1351,6 +1377,7 @@ where
     /// Reset the map
     #[inline]
     fn reset_map(&mut self) -> Result<(), Error> {
+        self.distance = f64::MAX;
         self.base.reset_map()
     }
 
@@ -1359,6 +1386,10 @@ where
     }
     fn to_vec(&self) -> Vec<u8> {
         self.base.to_vec()
+    }
+
+    fn get_distance(&self) -> f64 {
+        self.distance
     }
 
     fn how_many_set(&self, indexes: &[usize]) -> usize {
@@ -1404,7 +1435,7 @@ where
     /// Creates a new [`MapObserver`]
     pub fn new(base: M) -> Self {
         init_count_class_16();
-        Self { base }
+        Self { base, distance: f64::MAX }
     }
 }
 
