@@ -197,6 +197,10 @@ fn preprocess(binary: String, targets: String) -> Result<ICFG, String> {
         }
     }
 
+    for func in functions {
+        icfg.compute_distances(func);
+    }
+
     return Ok(icfg);
 }
 
@@ -213,5 +217,4 @@ fn main() {
     }
     let binary_file = std::env::args().nth(1).unwrap();
     let mut icfg = preprocess(binary_file, "racecar.tgt".to_string()).unwrap();
-    icfg.compute_distances("main");
 }

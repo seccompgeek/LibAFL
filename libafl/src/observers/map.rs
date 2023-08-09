@@ -1,16 +1,18 @@
 //! The `MapObserver` provides access a map, usually injected into the target
+use lazy_static::lazy_static;
 
 use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
+
+use std::sync::Mutex;
 use core::{
     fmt::Debug,
     hash::{BuildHasher, Hasher},
     iter::Flatten,
     marker::PhantomData,
-    slice::{from_raw_parts, Iter, IterMut, SlicePattern},
-    slice::{from_raw_parts, Iter, IterMut, SlicePattern},
+    slice::{from_raw_parts, Iter, IterMut},
 };
 use std::collections::HashMap;
 
@@ -31,21 +33,25 @@ use crate::{
     Error,
 };
 
-/// edge:distance map for PFuzz
-static mut DISTANCES: HashMap<usize,f64> = HashMap::default();
+lazy_static! {
+    static ref DISTANCES: Mutex<HashMap<usize,f64>> = Mutex::new(HashMap::default());
+}
 
 /// Get the edge:distance map in PFuzz
-pub fn distances() -> &'static HashMap<usize,f64> {
-    unsafe {
-        &DISTANCES
+pub fn get_distance(edge_id: usize) -> Option<f64> {
+    let lock = DISTANCES.lock();
+    let distances = lock.as_ref().unwrap();
+    match distances.get(&edge_id) {
+        Some(d) => Some(*d),
+        _ => None
     }
 }
 
 /// Set the edge:distance map in PFuzz
-pub fn distances_mut() -> &'static mut HashMap<usize, f64> {
-    unsafe {
-        &mut DISTANCES
-    }
+pub fn set_distance(edge_id: usize, distance: f64) {
+    let mut lock = DISTANCES.lock();
+    let distances = lock.as_mut().unwrap();
+    distances.insert(edge_id, distance);
 }
 
 /// Hitcounts class lookup
@@ -67,36 +73,6 @@ pub static COUNT_CLASS_LOOKUP: [u8; 256] = [
 /// Hitcounts class lookup for 16-byte values
 static mut COUNT_CLASS_LOOKUP_16: Vec<u16> = vec![];
 
-/// The distances vector use in Pfuzz
-static mut DISTANCES: Vec<f64> = vec![];
-
-/// Get the distances slice
-pub fn distances() -> &'static [f64] {
-    unsafe {
-        DISTANCES.as_slice()
-    }
-}
-
-/// Set the distances slice
-pub fn distances_mut() -> &'static mut [f64] {
-    unsafe {
-        DISTANCES.as_mut_slice()
-    }
-}
-
-/// Get the distance at edge_id
-pub fn distance_at(edge_id: usize) -> &'static f64 {
-    unsafe {
-        DISTANCES.get_unchecked(edge_id)
-    }
-}
-
-/// Set the distance at edge_id
-pub fn distance_at_mut(edge_id: usize) -> &'static mut f64 {
-    unsafe {
-        DISTANCES.get_unchecked_mut(edge_id)
-    }
-}
 
 /// Initialize the 16-byte hitcounts map
 ///
@@ -1309,13 +1285,17 @@ where
             }
         }
 
-        let distances = distances();
         let mut distance = 0.0;
         for (i, item) in map.iter().enumerate() {
-            if *item > 0 && distances.contains_key(&i) {
-                distance += 1.0 / *distances.get(&i).unwrap();
-            }else{
-                distance += 1.0 / f64::MAX;
+            if *item > 0 {
+                match get_distance(i) {
+                    Some(d) => {
+                        distance += 1.0 / d;
+                    },
+                    None => {
+                        distance += 1.0 / f64::MAX;
+                    }
+                }
             }
         }
         self.distance = 1.0 / distance;

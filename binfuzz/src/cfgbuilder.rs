@@ -16,8 +16,39 @@ impl HasWeight<ICFGMetadata> for ICFGMetadata {
     }
 }
 
-pub struct CFG {
-    funcs: HashMap<usize, String>,
+struct BasicBlock {
+    id: usize,
+    nexts: HashSet<usize>,
+    function: usize
+}
+
+impl BasicBlock {
+    fn new(id: usize, func: usize) -> Self{
+        Self { id, nexts: HashSet::default(), function }
+    }
+
+    fn add_next(&mut self, next: usize) {
+        self.nexts.insert(next);
+    }
+}
+
+struct Function {
+    name: String,
+    entry: usize,
+    basic_blocks: Vec<BasicBlock>,
+}
+
+struct CombinedCFG {
+    function_names: HashMap<String, usize>,
+    functions: HashMap<usize, Function>,
+    targets: HashMap<usize, f64>,
+    cached_distances: HashMap<usize, f64>
+}
+
+impl CombinedCFG {
+    fn compute_dfs(&mut self) {
+
+    }
 }
 
 pub struct ICFG {
@@ -40,18 +71,27 @@ impl ICFG {
         self.targets.insert(func.to_string(), weight);
     }
 
-    fn compute_target_distances(&self, edge_id: usize, default_distances: &HashMap<usize, u32>, visited: &mut HashSet<usize>, distances: &mut HashMap<usize, HashMap<usize, u32>>, loops: &mut HashSet<usize>) -> bool {
+    fn compute_target_distances(&self, edge_id: usize, default_distances: &HashMap<usize, u32>, visited: &mut HashSet<usize>, distances: &mut HashMap<usize, HashMap<usize, u32>>, loops: &mut HashSet<usize>, curr_func: (&str, usize), dfs: &mut HashMap<usize, HashMap<usize,f64>>) -> bool {
         if !visited.insert(edge_id) {
             return true;
         }
 
         distances.insert(edge_id, default_distances.clone());
         let edge = self.cfg.get_edge(edge_id).unwrap();
+
         if default_distances.contains_key(&edge.bottom_node_loc) {
             distances.entry(edge_id).and_modify(|map| {
                 map.entry(edge.bottom_node_loc).and_modify(|distance| {
                     *distance = 1;
                 });
+            });
+        }
+
+        if default_distances.contains_key(&curr_func.1) {
+            dfs.entry(edge_id).and_modify(|map| {
+                map.entry(curr_func.1).and_modify(|df|{
+                    *df = 0;
+                })
             });
         }
 
@@ -87,6 +127,9 @@ impl ICFG {
             };
             let mut visited = HashSet::new();
             for edge in &entry.successor_edges {
+                if self.cached_distances.contains_key(&edge) {
+                    continue;
+                }
                 let mut loops = HashSet::new();
                 self.compute_target_distances(*edge, &default_map, &mut visited, &mut target_distances, &mut loops);
                 for id in &loops {

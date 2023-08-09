@@ -306,6 +306,7 @@ where
 {
     /// Contains information about untouched entries
     pub history_map: Vec<T>,
+    /// The distance history of a given corpus entry.
     pub distance_history: f64,
 }
 
