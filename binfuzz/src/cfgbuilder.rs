@@ -5,6 +5,7 @@
 
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use goblin::mach::Mach::Binary;
+use libafl::prelude::set_distance;
 use libafl_cc::cfg::ControlFlowGraph;
 use libafl_cc::HasWeight;
 
@@ -13,41 +14,6 @@ pub struct ICFGMetadata {}
 impl HasWeight<ICFGMetadata> for ICFGMetadata {
     fn compute(metadata: Option<&ICFGMetadata>) -> u32 {
         1
-    }
-}
-
-struct BasicBlock {
-    id: usize,
-    nexts: HashSet<usize>,
-    function: usize
-}
-
-impl BasicBlock {
-    fn new(id: usize, func: usize) -> Self{
-        Self { id, nexts: HashSet::default(), function }
-    }
-
-    fn add_next(&mut self, next: usize) {
-        self.nexts.insert(next);
-    }
-}
-
-struct Function {
-    name: String,
-    entry: usize,
-    basic_blocks: Vec<BasicBlock>,
-}
-
-struct CombinedCFG {
-    function_names: HashMap<String, usize>,
-    functions: HashMap<usize, Function>,
-    targets: HashMap<usize, f64>,
-    cached_distances: HashMap<usize, f64>
-}
-
-impl CombinedCFG {
-    fn compute_dfs(&mut self) {
-
     }
 }
 
@@ -71,7 +37,7 @@ impl ICFG {
         self.targets.insert(func.to_string(), weight);
     }
 
-    fn compute_target_distances(&self, edge_id: usize, default_distances: &HashMap<usize, u32>, visited: &mut HashSet<usize>, distances: &mut HashMap<usize, HashMap<usize, u32>>, loops: &mut HashSet<usize>, curr_func: (&str, usize), dfs: &mut HashMap<usize, HashMap<usize,f64>>) -> bool {
+    fn compute_target_distances(&self, edge_id: usize, default_distances: &HashMap<usize, u32>, visited: &mut HashSet<usize>, distances: &mut HashMap<usize, HashMap<usize, u32>>, loops: &mut HashSet<usize>) -> bool {
         if !visited.insert(edge_id) {
             return true;
         }
@@ -84,14 +50,6 @@ impl ICFG {
                 map.entry(edge.bottom_node_loc).and_modify(|distance| {
                     *distance = 1;
                 });
-            });
-        }
-
-        if default_distances.contains_key(&curr_func.1) {
-            dfs.entry(edge_id).and_modify(|map| {
-                map.entry(curr_func.1).and_modify(|df|{
-                    *df = 0;
-                })
             });
         }
 
@@ -140,9 +98,10 @@ impl ICFG {
                 let mut distance = 0.0;
                 for dist in distances {
                     println!("{}->{}: {}", edge, dist.0, dist.1);
-                    distance += default_map.get(dist.0).unwrap() * dist.1 as f64;
+                    distance += (default_map.get(dist.0).unwrap() * dist.1) as f64;
                 }
                 self.cached_distances.insert(*edge, distance);
+                set_distance(*edge, distance);
             }
         }
     }

@@ -2,10 +2,9 @@ use std::{path::Path, fs, process::{Command, Stdio}, env, collections::HashMap};
 use libafl_cc::{cfg, HasWeight, ControlFlowGraph};
 use libafl_qemu::{Emulator, elf::EasyElf};
 use std::error::Error;
-use libafl::observers::binfuzz::DistancesMapObserver;
+
 
 mod cfgbuilder;
-mod distance_feedback;
 
 use cfgbuilder::ICFG;
 
@@ -122,7 +121,7 @@ fn preprocess(binary: String, targets: String) -> Result<ICFG, String> {
 
     let cfgs = fs::read_dir(cwd_str.clone() + "/cfgs/").expect("Unable to read cfgs folder");
 
-    for func in functions {
+    for func in &functions {
         let path = cwd_str.clone()+"/cfgs/" + func;
         let cfg_path = Path::new(&path);
         if cfg_path.exists() {
@@ -197,7 +196,7 @@ fn preprocess(binary: String, targets: String) -> Result<ICFG, String> {
         }
     }
 
-    for func in functions {
+    for func in &functions {
         icfg.compute_distances(func);
     }
 
