@@ -107,6 +107,11 @@ where
 
     /// Inserts an edge into CFG.
     fn insert_edge(&mut self, xored_loc: usize, edge: CfgEdge<T>) {
+        if self.edges.len() < xored_loc {
+            self.edges.resize_with(xored_loc+8, ||{
+                None
+            });
+        }
         self.edges[xored_loc] = Some(edge);
     }
 

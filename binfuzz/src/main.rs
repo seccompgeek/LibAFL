@@ -5,6 +5,7 @@ use std::error::Error;
 
 
 mod cfgbuilder;
+mod fuzzer;
 
 use cfgbuilder::ICFG;
 
@@ -214,6 +215,7 @@ fn main() {
     if std::env::args().len() < 2 {
         usage();
     }
-    let binary_file = std::env::args().nth(1).unwrap();
-    let mut icfg = preprocess(binary_file, "racecar.tgt".to_string()).unwrap();
+    //let binary_file = std::env::args().nth(1).unwrap();
+    //let mut icfg = preprocess(binary_file, "tiffinfo.tgt".to_string()).unwrap();
+    fuzzer::fuzz();
 }

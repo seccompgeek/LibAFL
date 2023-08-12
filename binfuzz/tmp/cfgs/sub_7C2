@@ -1,7 +1,0 @@
-digraph G {
-  node [shape=box, style="rounded", ];
-  1986 [label="0x000007c2", ];
-  
-  
-  
-  }
