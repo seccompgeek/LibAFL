@@ -2,6 +2,7 @@ use std::{cell::UnsafeCell, cmp::max};
 
 use hashbrown::{hash_map::Entry, HashMap};
 use libafl::{inputs::UsesInput, state::HasMetadata};
+use libafl::observers::{get_distance,set_distance};
 pub use libafl_targets::{
     edges_map_mut_slice, edges_max_num, EDGES_MAP, EDGES_MAP_PTR, EDGES_MAP_PTR_NUM,
     EDGES_MAP_SIZE, MAX_EDGES_NUM,
@@ -175,14 +176,14 @@ where
         .get_mut::<QemuEdgesMapMetadata>()
         .unwrap();
 
-    match meta.map.entry((src, dest)) {
+    let id = match meta.map.entry((src, dest)) {
         Entry::Occupied(e) => {
             let id = *e.get();
             let nxt = (id as usize + 1) & (EDGES_MAP_SIZE - 1);
             unsafe {
                 MAX_EDGES_NUM = max(MAX_EDGES_NUM, nxt);
             }
-            Some(id)
+            id
         }
         Entry::Vacant(e) => {
             let id = meta.current_id;
@@ -192,10 +193,15 @@ where
                 MAX_EDGES_NUM = meta.current_id as usize;
             }
             // GuestAddress is u32 for 32 bit guests
-            #[allow(clippy::unnecessary_cast)]
-            Some(id as u64)
+            //#[allow(clippy::unnecessary_cast)]
+            id as u64
         }
+    };
+
+    if let Some(dist) = get_distance(((src >> 1)^dest) as usize) {
+        set_distance(id as usize, dist);
     }
+    Some(id)
 }
 
 pub extern "C" fn trace_edge_hitcount(id: u64, _data: u64) {

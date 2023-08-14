@@ -84,7 +84,7 @@ where
     /// List of edges in the control flow graph.
     ///
     /// If there is collision, then only the latest edge would be saved.
-    edges: Vec<Option<CfgEdge<T>>>,
+    edges: HashMap<usize,CfgEdge<T>>,
     /// Mapping each function's name to its corresponding entry basic block information.
     func_to_entry_bb: HashMap<String, EntryBasicBlockInfo>,
 }
@@ -96,23 +96,16 @@ where
     /// Inserts an edge into CFG.
     #[must_use]
     pub fn new() -> Self {
-        let map_size = option_env!("LIBAFL_EDGES_MAP_SIZE")
-            .map_or(Ok(65536), str::parse)
-            .expect("Could not parse LIBAFL_EDGES_MAP_SIZE");
         Self {
-            edges: (0..map_size).map(|_| None).collect(),
+            edges: HashMap::default(),
             func_to_entry_bb: HashMap::default(),
         }
     }
 
     /// Inserts an edge into CFG.
     fn insert_edge(&mut self, xored_loc: usize, edge: CfgEdge<T>) {
-        if self.edges.len() < xored_loc {
-            self.edges.resize_with(xored_loc+8, ||{
-                None
-            });
-        }
-        self.edges[xored_loc] = Some(edge);
+
+        self.edges.insert(xored_loc, edge);
     }
 
     /// Inserts a function and its entry basic block information into CFG.
@@ -275,13 +268,13 @@ where
     /// Get the edge at the index of the coverage map AFL inserts to.
     #[must_use]
     pub fn get_edge(&self, xored_loc: usize) -> Option<&CfgEdge<T>> {
-        self.edges[xored_loc].as_ref()
+        self.edges.get(&xored_loc)
     }
 
     /// Get the mutable edge at the index of the coverage map AFL inserts to.
     #[must_use]
     pub fn get_edge_mut(&mut self, xored_loc: usize) -> Option<&mut CfgEdge<T>> {
-        self.edges[xored_loc].as_mut()
+        self.edges.get_mut(&xored_loc)
     }
 
     /// Get entry basic block information of a function.
