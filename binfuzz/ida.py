@@ -164,7 +164,7 @@ if __name__ == "__main__":
                         default='.',
                         help='Output directory')
     parser.add_argument('-cg', '--call-graph', metavar='call_graph', type=bool,
-                        default=False,
+                        default=True,
                         help='Generate call graph after disassembling')
     parser.add_argument('-i', '--ida-graph', metavar='ida_graph', type=bool,
                         default=False,

@@ -43,6 +43,31 @@ where
     }
 }
 
+/// The distance-to-target testcase 
+/// This favors testcases with short distances to the target
+#[derive(Debug, Clone)]
+pub struct DistanceTestCaseScore<S> {
+    phantom: PhantomData<S>
+}
+
+impl<S> TestcaseScore<S> for DistanceTestCaseScore<S> 
+where
+    S: HasCorpus + HasMetadata,
+{
+    #[allow(
+        clippy::cast_precision_loss,
+        clippy::too_many_lines,
+        clippy::cast_sign_loss,
+        clippy::cast_lossless
+    )]
+    fn compute(state: &S, entry: &mut Testcase<<S>::Input>) -> Result<f64, Error> {
+        let psmeta = state.metadata::<SchedulerMetadata>()?;
+        let tcmeta = entry.metadata::<SchedulerTestcaseMetadata>()?;
+        let distance = psmeta.distances()[tcmeta.n_fuzz_entry()];
+        Ok(distance)
+    }
+}
+
 /// Constants for powerschedules
 const POWER_BETA: f64 = 1.0;
 const MAX_FACTOR: f64 = POWER_BETA * 32.0;

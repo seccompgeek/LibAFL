@@ -1,9 +1,11 @@
 use core::ptr::addr_of_mut;
 
-use std::env;
 use std::process;
 use std::process::abort;
 
+use std::{path::Path, fs, process::{Command, Stdio}, env, collections::HashMap};
+
+use goblin::elf64::header::ET_DYN;
 use libafl::bolts::cli;
 use libafl::bolts::current_nanos;
 use libafl::bolts::launcher::Launcher;
@@ -21,12 +23,16 @@ use libafl::inputs::{BytesInput, HasTargetBytes};
 use libafl::monitors::MultiMonitor;
 use libafl::mutators::{havoc_mutations, tokens_mutations, StdScheduledMutator, Tokens};
 use libafl::observers::{HitcountsMapObserver, TimeObserver, VariableMapObserver};
+use libafl::schedulers::PowerQueueScheduler;
+use libafl::schedulers::minimizer::TargetDistanceMinimizerScheduler;
 use libafl::schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler};
 use libafl::stages::StdMutationalStage;
 use libafl::state::{HasCorpus, HasMetadata, StdState, UsesState};
 use libafl::{feedback_and_fast, feedback_or, Error};
 
 use libafl::prelude::UsesInput;
+use libafl_qemu::ArchExtras;
+use libafl_qemu::GuestAddr;
 use libafl_qemu::asan::QemuAsanOptions;
 use libafl_qemu::edges::{edges_map_mut_slice, QemuEdgeCoverageHelper, MAX_EDGES_NUM};
 use libafl_qemu::elf::EasyElf;
@@ -35,6 +41,8 @@ use libafl_qemu::{
     QemuHooks, QemuInstrumentationFilter, SYS_exit, SYS_exit_group, SYS_mmap, SYS_munmap, SYS_read,
     SyscallHookResult,
 };
+
+use crate::cfgbuilder::ICFG;
 
 /// maximum size allowed for our mmap'd input file
 const MMAP_SIZE: usize = 1048576; // 2**20 | 1 MB
@@ -254,6 +262,158 @@ where
     }
 }
 
+fn preprocess(binary: &str, load_addr: Option<GuestAddr>) -> Result<ICFG, String>{
+    let binary_path = Path::new(binary);
+    if !binary_path.exists() {
+        panic!("Binary {binary} not found!");
+    }
+    let binary_ = binary_path.file_name()
+                            .unwrap();
+    let binary = binary_
+                            .to_str()
+                            .unwrap();
+
+    let binary = binary.to_string();
+
+    let mut cwd = std::env::current_dir().unwrap();
+    let cwd_str = cwd.to_str().unwrap();
+    let mut cwd_str = cwd_str.to_string();
+
+    let targets = binary.to_string() + ".tgt";
+
+    let binary_path = cwd_str.clone()+"/"+&binary;
+    let targets_path = cwd_str.clone()+"/"+&targets;
+    cwd_str.push_str("/tmp");
+    let cwd = Path::new(&cwd_str);
+
+    if !cwd.exists() {
+        panic!("No tmp folder found!");
+    }
+    let _ = fs::copy(targets_path, cwd_str.clone()+"/"+&targets);
+
+
+    std::env::set_current_dir(&cwd_str).expect("Unable to change working directory");
+
+
+
+    let funcs_file = binary.clone() + ".funcs";
+    let funcs_path = Path::new(funcs_file.as_str());
+    if !funcs_path.exists() {
+        panic!("No funcs file found!");
+    }
+    let lines = fs::read_to_string(&funcs_file).unwrap();
+    let lines = lines.lines();
+    let mut functions = Vec::new();
+
+    let mut graph_string = "".to_string();
+
+    let to_real_addr = |addr: usize, load_addr: Option<GuestAddr> | -> usize {
+        match load_addr {
+            Some(la) => {
+                addr + la as usize
+            }
+            _ => addr
+        }
+    };
+
+    for line in lines {
+        let t: Vec<&str> = line.split(",").collect();
+        let (addr, func_name) = (t[0],t[1]);
+        let addr = addr.trim_start_matches("0x");
+        let addr = to_real_addr(usize::from_str_radix(addr, 16).unwrap(), load_addr);
+        let more = "$$".to_string()+func_name+"+"+addr.to_string().as_str()+"\n";
+        graph_string.push_str(&more);
+        functions.push(func_name);
+    }
+
+    let cfgs = fs::read_dir(cwd_str.clone() + "/cfgs/").expect("Unable to read cfgs folder");
+
+    for func in &functions {
+        let path = cwd_str.clone()+"/cfgs/" + func;
+        let cfg_path = Path::new(&path);
+        if cfg_path.exists() {
+            let lines = fs::read_to_string(cfg_path).unwrap();
+            let lines = lines.lines();
+            let mut ids_map: HashMap<&str, &str> = HashMap::default();
+            let mut edges_map: HashMap<&str, Vec<&str>> = HashMap::default();
+            for line in lines {
+                if let Some(label) = line.find("[label=") {
+                    let id = &line[0..label];
+                    let addr_pat = &line[label+"[label=\"".len()..];
+                    let addr = &addr_pat[0..addr_pat.find("\"").unwrap()];
+                    ids_map.insert(id.trim(), addr.trim());
+                    edges_map.insert(addr.trim(), Vec::new());
+                }else if let Some(edge) = line.find(" -> ") {
+                    let from = line[0..edge].trim();
+                    let to = line[edge+" -> ".len()..line.len()-1].trim();
+                    let from_addr = ids_map.get(&from).unwrap();
+                    let to_addr = ids_map.get(&to).unwrap();
+                    edges_map.get_mut(from_addr).unwrap().push(*to_addr);
+                }
+                
+            }
+
+            for entry in edges_map {
+                if !entry.1.is_empty() {
+                    let from_addr = entry.0.trim_start_matches("0x");
+                    let from_addr = to_real_addr(usize::from_str_radix(from_addr, 16).unwrap(), load_addr);
+                    let mut more = "%%".to_string()+func+"+"+from_addr.to_string().as_str()+"\n";
+                    for end in entry.1 {
+                        let end_addr = end.trim_start_matches("0x");
+                        let end_addr = to_real_addr(usize::from_str_radix(end_addr, 16).unwrap(), load_addr);
+                        more.push_str(&("->".to_string()+end_addr.to_string().as_str()+"\n"));
+                    }
+                    graph_string.push_str(&more);
+                }
+            }
+        }
+    }
+
+    let cg_path_str = cwd_str.clone()+"/"+binary.as_str()+".cg";
+    let cg_path = Path::new(&cg_path_str);
+    println!("{}", &cg_path_str);
+    if cg_path.exists() {
+        let calls_str = fs::read_to_string(cg_path).unwrap();
+        let calls = calls_str.lines();
+        for line in calls {
+            let entries: Vec<&str> = line.split('(').collect();
+            let caller_info: Vec<&str> = entries[1].trim_end_matches(")-").split(';').collect();
+            let caller_name = caller_info[0];
+            let caller_block = to_real_addr(usize::from_str_radix(caller_info[1].trim_start_matches("0x"), 16).unwrap(), load_addr);
+
+            let callee_info: Vec<&str> = entries[2].trim_end_matches(")").split(';').collect();
+            let callee_name = callee_info[0];
+            let callee_block = to_real_addr(usize::from_str_radix(callee_info[1].trim_start_matches("0x"), 16).unwrap(), load_addr);
+            let more = "%%".to_string() + caller_name + "+" + caller_block.to_string().as_str() + "\n->" + callee_block.to_string().as_str()+"\n";
+            graph_string.push_str(&more);
+        }
+    }
+
+    let mut icfg = ICFG::new(&graph_string);
+    let target_funcs_ps = cwd_str.clone()+"/"+&targets;
+    let target_func_path = Path::new(&target_funcs_ps);
+    if target_func_path.exists() {
+        let lines = fs::read_to_string(target_func_path).unwrap();
+        let lines = lines.lines();
+        for line in lines {
+            let splits: Vec<&str> = line.split(',').collect();
+            let target_func_name = splits[0];
+            let target_func_weight = splits[1].parse().unwrap();
+            icfg.add_target_func(target_func_name, target_func_weight);
+        }
+    }
+
+    
+    println!("{}",&graph_string);
+
+    for func in &functions {
+        icfg.compute_distances(func);
+    }
+
+    return Ok(icfg);
+
+}
+
 pub fn fuzz() -> Result<(), Error> {
     // parse the following:
     //   solutions dir
@@ -298,6 +458,13 @@ pub fn fuzz() -> Result<(), Error> {
     let mut buffer = Vec::new();
     let elf = EasyElf::from_file(emu.binary_path(), &mut buffer)?;
 
+    let icfg = match preprocess(emu.binary_path(), if elf.goblin().header.e_type == ET_DYN {Some(emu.load_addr())} else {None}) {
+        Ok(icfg) => {icfg},
+        Err(err) => {
+            panic!("{err}");
+        }
+    };
+
     // find the function of interest from the loaded elf. since we're not interested in parsing
     // command line stuff every time, we'll run until main, and then set our entrypoint to be past
     // the getopt stuff by adding a static offset found by looking at the disassembly. This is the
@@ -332,11 +499,9 @@ pub fn fuzz() -> Result<(), Error> {
         //
         // additionally, resetting registers to a known good state is handled by
         // QemuGPRegisterHelper during its pre_exec, so all we have to do is call .run
-        println!("Inside harness");
         unsafe {
             emu.run();
         };
-        println!("Exiting harness");
         ExitKind::Ok
     };
 
@@ -451,7 +616,12 @@ pub fn fuzz() -> Result<(), Error> {
         // entries registered in the MapIndexesMetadata
         //
         // a QueueCorpusScheduler walks the corpus in a queue-like fashion
-        let scheduler = IndexesLenTimeMinimizerScheduler::new(QueueScheduler::new());
+        //let scheduler = IndexesLenTimeMinimizerScheduler::new(QueueScheduler::new());
+        let scheduler = TargetDistanceMinimizerScheduler::new(PowerQueueScheduler::new(
+            &mut state,
+            &edges_observer,
+            libafl::schedulers::powersched::PowerSchedule::AFLGo
+        ));
 
         //
         // Component: Fuzzer

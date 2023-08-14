@@ -15,8 +15,10 @@ use crate::{
     observers::ObserversTuple,
     schedulers::{LenTimeMulTestcaseScore, RemovableScheduler, Scheduler, TestcaseScore},
     state::{HasCorpus, HasMetadata, HasRand, UsesState},
-    Error,
+    Error, prelude::PowerQueueScheduler,
 };
+
+use super::testcase_score::DistanceTestCaseScore;
 
 /// Default probability to skip the non-favored values
 pub const DEFAULT_SKIP_NON_FAVORED_PROB: u64 = 95;
@@ -387,3 +389,7 @@ pub type LenTimeMinimizerScheduler<CS, M> =
 /// that exercise all the entries registered in the [`MapIndexesMetadata`].
 pub type IndexesLenTimeMinimizerScheduler<CS> =
     MinimizerScheduler<CS, LenTimeMulTestcaseScore<<CS as UsesState>::State>, MapIndexesMetadata>;
+
+/// A [`MinimizerScheduler`] with [`DistanceTestCaseScore`] to prioritize [`Testcase`]`s` closer to the target functions in Pfuzz
+/// that exercise all the entries registered in the [`MapIndexesMetadata`].
+pub type TargetDistanceMinimizerScheduler<CS> = MinimizerScheduler<CS, DistanceTestCaseScore<<CS as UsesState>::State>, MapIndexesMetadata>;

@@ -52,6 +52,7 @@ impl ICFG {
                 });
             });
         }
+        
 
         let mut prev_distances = distances.get(&edge_id).unwrap().clone();
         let mut changed = false;
