@@ -42,7 +42,7 @@ use libafl_qemu::{
     SyscallHookResult,
 };
 
-use crate::cfgbuilder::{ICFG, Program};
+use crate::cfgbuilder::Program;
 
 /// maximum size allowed for our mmap'd input file
 const MMAP_SIZE: usize = 1048576; // 2**20 | 1 MB
@@ -379,7 +379,6 @@ fn preprocess(binary: &str, load_addr: Option<GuestAddr>) -> Result<(), String>{
         }
     }
 
-    /*let mut icfg = ICFG::new(&graph_string);
     let target_funcs_ps = cwd_str.clone()+"/"+&targets;
     let target_func_path = Path::new(&target_funcs_ps);
     if target_func_path.exists() {
@@ -389,16 +388,15 @@ fn preprocess(binary: &str, load_addr: Option<GuestAddr>) -> Result<(), String>{
             let splits: Vec<&str> = line.split(',').collect();
             let target_func_name = splits[0];
             let target_func_weight = splits[1].parse().unwrap();
-            icfg.add_target_func(target_func_name, target_func_weight);
+            program.add_target_func(target_func_name, target_func_weight);
         }
     }
 
-    
+    program.compute_distances();
 
-    for func in &functions {
-        icfg.compute_distances(func);
-    }
-*/
+    let cwd_str = cwd_str.clone() + "/../";
+    std::env::set_current_dir(cwd_str);
+
     return Ok(());
 
 }

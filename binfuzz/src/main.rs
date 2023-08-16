@@ -7,7 +7,6 @@ use std::error::Error;
 mod cfgbuilder;
 mod fuzzer;
 
-use cfgbuilder::ICFG;
 
 fn main() {
     fuzzer::fuzz();

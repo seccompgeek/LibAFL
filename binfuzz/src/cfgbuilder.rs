@@ -100,139 +100,85 @@ impl Program {
         self.targets.insert(func_name.to_string(), score);
     }
 
-    fn compute_target_distances(&self, block: &BasicBlock, edge: usize, default_map: &HashMap<usize, u32>, visited: &mut HashSet<usize>, target_distances: &mut HashMap<usize, HashMap<usize, u32>>, loops: &mut HashSet<usize>) {
-        let next = (block.address >> 1) ^ edge;
-        let function = self.funcs.get(&next)
-    }
-
-    pub fn compute_distances(&mut self, entry_func: &str) {
-        if let Some(entry) = self.func_names.get(&entry_func.to_string()) {
-            let mut target_distances: HashMap<usize, HashMap<usize, u32>> = HashMap::default();
-            let mut default_map = HashMap::default();
-            for func in &self.targets {
-                let func_entry = self.func_names.get(&func.0).unwrap();
-                default_map.insert(*func_entry, u32::MAX);
-            };
-            let mut visited = HashSet::new();
-            let function = self.funcs.get(entry).unwrap();
-            let entry_block = function.basic_blocks.get(entry).unwrap();
-            for next in &entry_block.successors {
-                let edge = (*entry >> 1) ^ *next;
-                if self.cached_distances.contains_key(&edge) {
-                    continue;
-                }
-                let mut loops = HashSet::new();
-                self.compute_target_distances(entry_block, edge, &default_map, &mut visited, &mut target_distances, &mut loops);
-                for id in &loops {
-                    visited.remove(id);
-                    self.compute_target_distances(*id, &default_map, &mut visited, &mut target_distances, &mut HashSet::default());
-                }
-                let distances = target_distances.get(edge).unwrap();
-                let mut distance = 0.0;
-                for dist in distances {
-                    let temp_distance = (*default_map.get(dist.0).unwrap() as f64) * (*dist.1 as f64);
-                    if distance == 0.0 || temp_distance < distance{
-                        distance = temp_distance;
-                    }
-                }
-                self.cached_distances.insert(*edge, distance);
-                set_distance(*edge, distance);
-            }
-        }
-    }
-
-
-}
-
-pub struct ICFG {
-    cfg: ControlFlowGraph<ICFGMetadata>,
-    targets: HashMap<String, f64>,
-    cached_distances: HashMap<usize, f64>,
-}
-
-impl ICFG {
-    pub fn new(cfg_str: &str) -> Self {
-        let cfg = ControlFlowGraph::from_content(cfg_str);
-        Self {
-            cfg,
-            targets: HashMap::default(),
-            cached_distances: HashMap::default()
-        }
-    }
-
-    pub fn add_target_func(&mut self, func: &str, weight: f64) {
-        self.targets.insert(func.to_string(), weight);
-    }
-
-    fn compute_target_distances(&self, edge_id: usize, default_distances: &HashMap<usize, u32>, visited: &mut HashSet<usize>, distances: &mut HashMap<usize, HashMap<usize, u32>>, loops: &mut HashSet<usize>) -> bool {
-        if !visited.insert(edge_id) {
-            return true;
+    fn compute_target_distances(&self, block: &BasicBlock, default_map: &HashMap<usize, u32>, visited: &mut HashSet<usize>, target_distances: &mut HashMap<usize, HashMap<usize, u32>>) {
+        if visited.contains(&block.address) {
+            return;
         }
 
-        distances.insert(edge_id, default_distances.clone());
-        let edge = self.cfg.get_edge(edge_id).unwrap();
+        visited.insert(block.address);
+        target_distances.insert(block.address, default_map.clone());
 
-        if default_distances.contains_key(&edge.bottom_node_loc) {
-            distances.entry(edge_id).and_modify(|map| {
-                map.entry(edge.bottom_node_loc).and_modify(|distance| {
-                    *distance = 1;
+
+        let mut distance = 0;
+        let func = self.funcs.get(&block.function).unwrap();
+
+        if default_map.contains_key(&block.function) {
+            target_distances.entry(block.address).and_modify(|map|{
+                map.entry(block.address).and_modify(|e|{
+                    *e = 0;
                 });
             });
         }
 
-
-        let mut prev_distances = distances.get(&edge_id).unwrap().clone();
-        let mut changed = false;
-        for succ in &edge.successor_edges {
-            if self.compute_target_distances(*succ, default_distances, visited, distances, loops) {
-                loops.insert(edge_id);
-            }
-            let succ_distances = distances.get(succ).unwrap();
-            for (func,dist) in &mut prev_distances {
-                let succ_dist = succ_distances.get(func).unwrap();
-                if succ_dist < dist {
-                    *dist = succ_dist.saturating_add(1);
-                    changed = true;
+        let mut self_distances = target_distances.get(&block.address).unwrap().clone();
+        for next in &block.successors {
+            let next_block = func.get_basic_block(*next).unwrap();
+            self.compute_target_distances(next_block, default_map, visited, target_distances);
+            for dists in target_distances.get(next).unwrap() {
+                let comp = self_distances.get_mut(dists.0).unwrap();
+                let new_dist = dists.1.saturating_add(1);
+                if new_dist < *comp {
+                    *comp = new_dist;
                 }
             }
         }
 
-        if changed {
-            distances.insert(edge_id, prev_distances);
+        for callee in &block.calls {
+            let target_func = self.funcs.get(callee).unwrap();
+            let next_block = target_func.get_basic_block(*callee).unwrap();
+            self.compute_target_distances(next_block, default_map, visited, target_distances);
+            for dists in target_distances.get(callee).unwrap() {
+                let comp = self_distances.get_mut(dists.0).unwrap();
+                let new_dist = dists.1.saturating_add(1);
+                if new_dist < *comp {
+                    *comp = new_dist;
+                }
+            }
         }
-        false
+
+        target_distances.insert(block.address, self_distances);
     }
 
-    pub fn compute_distances(&mut self, entry_func: &str) {
-        if let Some(entry) = self.cfg.get_entry(entry_func) {
-            let mut target_distances: HashMap<usize, HashMap<usize, u32>> = HashMap::default();
-            let mut default_map = HashMap::default();
-            for func in &self.targets {
-                let func_entry = self.cfg.get_entry(&func.0).unwrap();
-                default_map.insert(func_entry.node_loc, u32::MAX);
-            };
+    pub fn compute_distances(&mut self) {
+        let mut target_distances: HashMap<usize, HashMap<usize, u32>> = HashMap::default();
+        let mut func2dist: HashMap<usize, f64> = HashMap::default();
+        let mut default_map = HashMap::default();
+        for func in &self.targets {
+            let func_entry = self.func_names.get(func.0).unwrap();
+            default_map.insert(*func_entry, u32::MAX);
+            func2dist.insert(*func_entry, *func.1);
+        };
+
+        for (entry, function) in &self.funcs {
             let mut visited = HashSet::new();
-            for edge in &entry.successor_edges {
-                if self.cached_distances.contains_key(&edge) {
-                    continue;
-                }
-                let mut loops = HashSet::new();
-                self.compute_target_distances(*edge, &default_map, &mut visited, &mut target_distances, &mut loops);
-                for id in &loops {
-                    visited.remove(id);
-                    self.compute_target_distances(*id, &default_map, &mut visited, &mut target_distances, &mut HashSet::default());
-                }
-                let distances = target_distances.get(edge).unwrap();
-                let mut distance = 0.0;
-                for dist in distances {
-                    let temp_distance = (*default_map.get(dist.0).unwrap() as f64) * (*dist.1 as f64);
-                    if distance == 0.0 || temp_distance < distance{
-                        distance = temp_distance;
+            let entry_block = function.basic_blocks.get(entry).unwrap();
+            self.compute_target_distances(entry_block, &default_map, &mut visited, &mut target_distances);
+        }
+
+        for (_,func) in &self.funcs {
+            for (_,block) in &func.basic_blocks {
+                for next in &block.successors {
+                    let edge = (block.address >> 1) ^ next;
+                    let distances = target_distances.get(next).unwrap();
+                    let mut distance = 0.0;
+                    for (func,dist) in distances {
+                        distance += dist.saturating_add(1) as f64 * func2dist.get(func).unwrap();
                     }
+                    set_distance(edge, distance);
                 }
-                self.cached_distances.insert(*edge, distance);
-                set_distance(*edge, distance);
             }
         }
     }
+
+
 }
