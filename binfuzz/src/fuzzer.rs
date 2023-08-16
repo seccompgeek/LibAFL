@@ -42,7 +42,7 @@ use libafl_qemu::{
     SyscallHookResult,
 };
 
-use crate::cfgbuilder::ICFG;
+use crate::cfgbuilder::{ICFG, Program};
 
 /// maximum size allowed for our mmap'd input file
 const MMAP_SIZE: usize = 1048576; // 2**20 | 1 MB
@@ -262,7 +262,7 @@ where
     }
 }
 
-fn preprocess(binary: &str, load_addr: Option<GuestAddr>) -> Result<ICFG, String>{
+fn preprocess(binary: &str, load_addr: Option<GuestAddr>) -> Result<(), String>{
     let binary_path = Path::new(binary);
     if !binary_path.exists() {
         panic!("Binary {binary} not found!");
@@ -281,7 +281,7 @@ fn preprocess(binary: &str, load_addr: Option<GuestAddr>) -> Result<ICFG, String
 
     let targets = binary.to_string() + ".tgt";
 
-    let binary_path = cwd_str.clone()+"/"+&binary;
+    let binary_path = cwd_str.clone()+"/tmp/"+&binary;
     let targets_path = cwd_str.clone()+"/"+&targets;
     cwd_str.push_str("/tmp");
     let cwd = Path::new(&cwd_str);
@@ -307,6 +307,8 @@ fn preprocess(binary: &str, load_addr: Option<GuestAddr>) -> Result<ICFG, String
 
     let mut graph_string = "".to_string();
 
+    let mut program = Program::new(&binary);
+
     let to_real_addr = |addr: usize, load_addr: Option<GuestAddr> | -> usize {
         match load_addr {
             Some(la) => {
@@ -322,7 +324,7 @@ fn preprocess(binary: &str, load_addr: Option<GuestAddr>) -> Result<ICFG, String
         let addr = addr.trim_start_matches("0x");
         let addr = to_real_addr(usize::from_str_radix(addr, 16).unwrap(), load_addr);
         let more = "$$".to_string()+func_name+"+"+addr.to_string().as_str()+"\n";
-        graph_string.push_str(&more);
+        program.add_function(addr, func_name);
         functions.push(func_name);
     }
 
@@ -331,39 +333,24 @@ fn preprocess(binary: &str, load_addr: Option<GuestAddr>) -> Result<ICFG, String
     for func in &functions {
         let path = cwd_str.clone()+"/cfgs/" + func;
         let cfg_path = Path::new(&path);
+        let func_addr = *program.get_func_addr(func).unwrap();
+        let function = program.get_func_mut(func_addr).unwrap();
         if cfg_path.exists() {
             let lines = fs::read_to_string(cfg_path).unwrap();
             let lines = lines.lines();
             let mut ids_map: HashMap<&str, &str> = HashMap::default();
             let mut edges_map: HashMap<&str, Vec<&str>> = HashMap::default();
             for line in lines {
-                if let Some(label) = line.find("[label=") {
-                    let id = &line[0..label];
-                    let addr_pat = &line[label+"[label=\"".len()..];
-                    let addr = &addr_pat[0..addr_pat.find("\"").unwrap()];
-                    ids_map.insert(id.trim(), addr.trim());
-                    edges_map.insert(addr.trim(), Vec::new());
-                }else if let Some(edge) = line.find(" -> ") {
+                if line.contains(" -> ") {
+                    let edge = line.find(" -> ").unwrap();
                     let from = line[0..edge].trim();
                     let to = line[edge+" -> ".len()..line.len()-1].trim();
-                    let from_addr = ids_map.get(&from).unwrap();
-                    let to_addr = ids_map.get(&to).unwrap();
-                    edges_map.get_mut(from_addr).unwrap().push(*to_addr);
-                }
-                
-            }
-
-            for entry in edges_map {
-                if !entry.1.is_empty() {
-                    let from_addr = entry.0.trim_start_matches("0x");
-                    let from_addr = to_real_addr(usize::from_str_radix(from_addr, 16).unwrap(), load_addr);
-                    let mut more = "%%".to_string()+func+"+"+from_addr.to_string().as_str()+"\n";
-                    for end in entry.1 {
-                        let end_addr = end.trim_start_matches("0x");
-                        let end_addr = to_real_addr(usize::from_str_radix(end_addr, 16).unwrap(), load_addr);
-                        more.push_str(&("->".to_string()+end_addr.to_string().as_str()+"\n"));
-                    }
-                    graph_string.push_str(&more);
+                    let from_addr = to_real_addr(usize::from_str_radix(from, 10).unwrap(), load_addr);
+                    let to_addr = to_real_addr(usize::from_str_radix(to, 10).unwrap(), load_addr);
+                    function.add_basic_block(from_addr);
+                    function.add_basic_block(to_addr);
+                    let from_bb = function.get_basic_block_mut(from_addr).unwrap();
+                    from_bb.add_successor(to_addr);
                 }
             }
         }
@@ -371,7 +358,6 @@ fn preprocess(binary: &str, load_addr: Option<GuestAddr>) -> Result<ICFG, String
 
     let cg_path_str = cwd_str.clone()+"/"+binary.as_str()+".cg";
     let cg_path = Path::new(&cg_path_str);
-    println!("{}", &cg_path_str);
     if cg_path.exists() {
         let calls_str = fs::read_to_string(cg_path).unwrap();
         let calls = calls_str.lines();
@@ -379,17 +365,21 @@ fn preprocess(binary: &str, load_addr: Option<GuestAddr>) -> Result<ICFG, String
             let entries: Vec<&str> = line.split('(').collect();
             let caller_info: Vec<&str> = entries[1].trim_end_matches(")-").split(';').collect();
             let caller_name = caller_info[0];
-            let caller_block = to_real_addr(usize::from_str_radix(caller_info[1].trim_start_matches("0x"), 16).unwrap(), load_addr);
-
             let callee_info: Vec<&str> = entries[2].trim_end_matches(")").split(';').collect();
             let callee_name = callee_info[0];
-            let callee_block = to_real_addr(usize::from_str_radix(callee_info[1].trim_start_matches("0x"), 16).unwrap(), load_addr);
-            let more = "%%".to_string() + caller_name + "+" + caller_block.to_string().as_str() + "\n->" + callee_block.to_string().as_str()+"\n";
-            graph_string.push_str(&more);
+            let callee_addr = to_real_addr(usize::from_str_radix(callee_info[1].trim_start_matches("0x"), 16).unwrap(), load_addr);
+            program.add_function(callee_addr, callee_name);
+
+            let callee_addr = *program.get_func_addr(callee_name).unwrap();
+            let caller_addr = *program.get_func_addr(caller_name).unwrap();
+            let caller_func = program.get_func_mut(caller_addr).unwrap();
+            let caller_block_addr = to_real_addr(usize::from_str_radix(caller_info[1].trim_start_matches("0x"), 16).unwrap(), load_addr);
+            let caller_block = caller_func.get_basic_block_mut(caller_block_addr).unwrap();
+            caller_block.add_call(callee_addr);
         }
     }
 
-    let mut icfg = ICFG::new(&graph_string);
+    /*let mut icfg = ICFG::new(&graph_string);
     let target_funcs_ps = cwd_str.clone()+"/"+&targets;
     let target_func_path = Path::new(&target_funcs_ps);
     if target_func_path.exists() {
@@ -404,13 +394,12 @@ fn preprocess(binary: &str, load_addr: Option<GuestAddr>) -> Result<ICFG, String
     }
 
     
-    println!("{}",&graph_string);
 
     for func in &functions {
         icfg.compute_distances(func);
     }
-
-    return Ok(icfg);
+*/
+    return Ok(());
 
 }
 
@@ -708,7 +697,7 @@ pub fn fuzz() -> Result<(), Error> {
         .monitor(monitor)
         .run_client(&mut run_client)
         .cores(&fuzzer_options.cores)
-        .stdout_file(Some(fuzzer_options.stdout.as_str()))
+        //.stdout_file(Some(fuzzer_options.stdout.as_str()))
         .build()
         .launch()
     {

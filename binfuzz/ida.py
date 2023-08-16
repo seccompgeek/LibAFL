@@ -103,7 +103,7 @@ class BinaryScanner(object):
                     self._scan_block(block, fname)
 
 
-class Printer():
+class  Printer():
     def __init__(self,cg_filename):
         self._to_disassemble = []
         self.fp = open(cg_filename,"w")
@@ -167,7 +167,7 @@ if __name__ == "__main__":
                         default=True,
                         help='Generate call graph after disassembling')
     parser.add_argument('-i', '--ida-graph', metavar='ida_graph', type=bool,
-                        default=False,
+                        default=True,
                         help='Original IDA graph (one basic block can contain multiple call instructions)')
 
     args = parser.parse_args(args=idc.ARGV[1:])

@@ -1293,6 +1293,7 @@ where
                         distance += 1.0 / d;
                     },
                     None => {
+                        // edges not discovered at static analysis
                         distance += 1.0 / f64::MAX;
                     }
                 }
