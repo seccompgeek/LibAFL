@@ -172,9 +172,9 @@ impl Program {
                     let distances = target_distances.get(next).unwrap();
                     let mut distance = 0.0;
                     for (func,dist) in distances {
-                        distance += dist.saturating_add(1) as f64 * func2dist.get(func).unwrap();
+                        distance += 1.0 / dist.saturating_add(1) as f64 * func2dist.get(func).unwrap();
                     }
-                    set_distance(edge, distance);
+                    set_distance(edge, target_distances.len() as f64 / distance);
                 }
             }
         }
