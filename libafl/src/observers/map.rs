@@ -34,11 +34,11 @@ use crate::{
 };
 
 lazy_static! {
-    static ref DISTANCES: Mutex<HashMap<usize,f64>> = Mutex::new(HashMap::default());
+    static ref DISTANCES: Mutex<HashMap<usize,(bool,f64)>> = Mutex::new(HashMap::default());
 }
 
 /// Get the edge:distance map in PFuzz
-pub fn get_distance(edge_id: usize) -> Option<f64> {
+pub fn get_distance(edge_id: usize) -> Option<(bool,f64)> {
     let lock = DISTANCES.lock();
     let distances = lock.as_ref().unwrap();
     match distances.get(&edge_id) {
@@ -51,7 +51,7 @@ pub fn get_distance(edge_id: usize) -> Option<f64> {
 pub fn set_distance(edge_id: usize, distance: f64) {
     let mut lock = DISTANCES.lock();
     let distances = lock.as_mut().unwrap();
-    distances.insert(edge_id, distance);
+    distances.insert(edge_id, (false,distance));
 }
 
 /// Hitcounts class lookup
@@ -1289,8 +1289,12 @@ where
         for (i, item) in map.iter().enumerate() {
             if *item > 0 {
                 match get_distance(i) {
-                    Some(d) => {
-                        distance += 1.0 / d;
+                    Some((s,d)) => {
+                        if s {
+                            distance += 1.0 / d
+                        } else {
+                            distance += 1.0 / f64::MAX;
+                        }
                     },
                     None => {
                         // edges not discovered at static analysis

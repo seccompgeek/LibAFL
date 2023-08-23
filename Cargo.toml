@@ -17,7 +17,7 @@ members = [
     "utils/gramatron/construct_automata",
     "utils/libafl_benches",
     "utils/build_and_test_fuzzers",
-    "binfuzz",
+    "pfuzz"
 ]
 default-members = [
     "libafl",
@@ -30,7 +30,8 @@ exclude = [
     "bindings",
     "scripts",
     "libafl_qemu/libafl_qemu_build",
-    "libafl_qemu/libafl_qemu_sys"
+    "libafl_qemu/libafl_qemu_sys",
+    "binfuzz"
 ]
 
 [workspace.package]

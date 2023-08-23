@@ -695,7 +695,7 @@ pub fn fuzz() -> Result<(), Error> {
         .monitor(monitor)
         .run_client(&mut run_client)
         .cores(&fuzzer_options.cores)
-        //.stdout_file(Some(fuzzer_options.stdout.as_str()))
+        .stdout_file(Some(fuzzer_options.stdout.as_str()))
         .build()
         .launch()
     {

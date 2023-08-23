@@ -1,0 +1,14 @@
+[package]
+name = "pfuzz"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+libafl_cc = {path = "../libafl_cc"}
+libafl_qemu = {path = "../libafl_qemu", features = ["x86_64"]}
+libafl = {path = "../libafl", features = ["qemu_cli"]}
+serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] } # serialization lib
+goblin = "0.7.1"
+lazy_static = "1.4.0"
