@@ -6,8 +6,8 @@ use libafl::prelude::{BytesInput, Input, VariableMapObserver, HitcountsMapObserv
 use libafl::schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler};
 use libafl::state::StdState;
 use libafl_qemu::edges::{self, edges_map_mut_slice, MAX_EDGES_NUM};
-use libafl_qemu::{self, ArchExtras, QemuHooks, QemuExecutor, QemuInstrumentationFilter, QemuAsanHelper, QemuHelper, Emulator};
-use std::{env, process};
+use libafl_qemu::{self, ArchExtras, QemuHooks, QemuExecutor, QemuInstrumentationFilter, QemuAsanHelper, QemuHelper, Emulator, Regs};
+use std::{env, process, fs};
 use std::path::Path;
 use std::ptr::addr_of_mut;
 use libafl_qemu::elf::EasyElf;
@@ -21,6 +21,7 @@ use libafl::corpus::Corpus;
 use libafl::feedbacks::{MaxMapFeedback, TimeFeedback, CrashFeedback};
 use libafl::Fuzzer;
 use libafl::prelude::Merge;
+use libafl_qemu::MmapPerms;
 
 use crate::main;
 
@@ -125,28 +126,67 @@ pub fn coverage_fuzz() -> Result<(), Error>{
 
     // point at which we want to stop execution, i.e. before return from main and before optind++
     let ret_addr = main_ptr + 0x33C;
+    //let ret_addr = main_ptr + 0x42B;
 
     emu.set_breakpoint(main_ptr);
     unsafe {emu.run()}
+
+    //get the stack pointer
+    let stack_ptr = emu.read_reg::<_,u64>(Regs::Rsp).unwrap();
+    //get the first argument
+    let argc = emu.read_reg::<_, u64>(Regs::Rdi).unwrap();
+    //get the second argument (argv**)
+    let argv = emu.read_reg::<_,u64>(Regs::Rsi).unwrap();
+    //get input address
+    let input_addr = emu.map_private(0, 4096, MmapPerms::ReadWrite).unwrap();
+    let zeros = [0; 4096];
+    unsafe {}
+
+    println!("Num args: {}",argc);
 
     emu.remove_breakpoint(main_ptr);
     emu.set_breakpoint(ret_addr);
 
     let mut args = fuzzer_options.qemu_args.as_slice()[3..].to_vec();
     let arg_len = args.len();
-    let mut harness = |_input: &BytesInput| {
-        /*let mut input_name = "./solutions/files/".to_string();
+    
+    let infile_offset = argv + (8*(argc-1) as u64);
+    
+    for i in 0..argc {
+        let mut buf: [u8; 256] = [0; 256];
+        let offset = argv + (8*i as u64);
+        let mut infile_addr = [0; 8];
+        unsafe { 
+            emu.read_mem(offset, &mut infile_addr);
+            emu.read_mem(*(infile_addr.as_ptr() as *const u64), &mut buf);
+        }
+
+        let string = String::from_utf8(buf.to_vec()).unwrap();
+        println!("at i: {} = {}", i, string);
+
+    }
+
+
+    let mut harness = |input: &BytesInput| {
+        let mut input_name = "./solutions/files/".to_string();
         let input_file = input.generate_name(0);
         input_name.push_str(&input_file);
         let file_path = Path::new(&input_name);
         input.to_file(&file_path);
-        let mut args = args.clone();
-        args[arg_len-1] = input_name;
-        emu.write_function_argument(libafl_qemu::CallingConvention::Cdecl, 1, args.as_ptr() as u64);
-        */
-        
-        unsafe {emu.run();}
 
+        unsafe {
+            emu.write_mem(input_addr, &zeros);
+            emu.write_mem(input_addr, input_name.as_bytes());
+            emu.write_mem(infile_offset, &input_addr.to_le_bytes());
+
+            emu.write_reg(Regs::Rdi, argc).unwrap();
+            emu.write_reg(Regs::Rsi, argv).unwrap();
+            emu.write_reg(Regs::Rip, main_ptr).unwrap();
+
+            emu.run();
+        }
+
+        fs::remove_file(file_path).unwrap();
         ExitKind::Ok
     };
 
