@@ -168,16 +168,16 @@ pub fn coverage_fuzz() -> Result<(), Error>{
 
 
     let mut harness = |input: &BytesInput| {
-        let mut input_name = "./solutions/files/".to_string();
-        let input_file = input.generate_name(0);
-        input_name.push_str(&input_file);
+        let mut input_name = "./solutions/files/infile".to_string();
+        //let input_file = input.generate_name(0);
+        //input_name.push_str(&input_name);
         let file_path = Path::new(&input_name);
         input.to_file(&file_path);
 
         unsafe {
-            emu.write_mem(input_addr, &zeros);
-            emu.write_mem(input_addr, input_name.as_bytes());
-            emu.write_mem(infile_offset, &input_addr.to_le_bytes());
+            //emu.write_mem(input_addr, &zeros);
+            //emu.write_mem(input_addr, input_name.as_bytes());
+            //emu.write_mem(infile_offset, &input_addr.to_le_bytes());
 
             emu.write_reg(Regs::Rdi, argc).unwrap();
             emu.write_reg(Regs::Rsi, argv).unwrap();
@@ -372,7 +372,7 @@ pub fn coverage_fuzz() -> Result<(), Error>{
         .monitor(monitor)
         .run_client(&mut run_client)
         .cores(&fuzzer_options.cores)
-        //.stdout_file(Some(fuzzer_options.stdout.as_str()))
+        .stdout_file(Some(fuzzer_options.stdout.as_str()))
         .build()
         .launch()
     {
