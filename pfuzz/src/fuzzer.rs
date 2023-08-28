@@ -148,7 +148,7 @@ pub fn coverage_fuzz() -> Result<(), Error>{
     emu.set_breakpoint(ret_addr);
 
 
-    let mut input_name = "./solutions/files/infile".to_string();
+    let mut input_name = "./fuzzer_stats/files/infile".to_string();
     //let input_file = input.generate_name(0);
     //input_name.push_str(&input_name);
     let file_path = Path::new(&input_name);
