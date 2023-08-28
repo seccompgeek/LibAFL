@@ -1,8 +1,8 @@
 use libafl::bolts::cli;
 use libafl::corpus::ondisk::{OnDiskCorpus, OnDiskMetadataFormat};
 use libafl::stages::StdMutationalStage;
-use libafl::{Error, StdFuzzer, feedback_or, feedback_and_fast};
-use libafl::prelude::{BytesInput, Input, VariableMapObserver, HitcountsMapObserver, TimeObserver, StdRand, Tokens, StdScheduledMutator, havoc_mutations, tokens_mutations, tuple_list, MultiMonitor, Launcher, StdShMemProvider, EventConfig, UsesInput};
+use libafl::{Error, StdFuzzer, feedback_or, feedback_and_fast, feedback_or_fast};
+use libafl::prelude::{BytesInput, Input, VariableMapObserver, HitcountsMapObserver, TimeObserver, StdRand, Tokens, StdScheduledMutator, havoc_mutations, tokens_mutations, tuple_list, MultiMonitor, Launcher, StdShMemProvider, EventConfig, UsesInput, TimeoutFeedback};
 use libafl::schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler};
 use libafl::state::StdState;
 use libafl_qemu::edges::{self, edges_map_mut_slice, MAX_EDGES_NUM};
@@ -100,7 +100,7 @@ pub fn coverage_fuzz() -> Result<(), Error>{
     )?;
 
     // corpus in which we store solutions on disk so we can get them after stopping the fuzzer
-    let solutions_corpus = OnDiskCorpus::new(fuzzer_options.output)?;
+    let solutions_corpus = OnDiskCorpus::new(fuzzer_options.output.join("crashes"))?;
 
     //
     // Component: Emulator
@@ -147,31 +147,14 @@ pub fn coverage_fuzz() -> Result<(), Error>{
     emu.remove_breakpoint(main_ptr);
     emu.set_breakpoint(ret_addr);
 
-    let mut args = fuzzer_options.qemu_args.as_slice()[3..].to_vec();
-    let arg_len = args.len();
-    
-    let infile_offset = argv + (8*(argc-1) as u64);
-    
-    for i in 0..argc {
-        let mut buf: [u8; 256] = [0; 256];
-        let offset = argv + (8*i as u64);
-        let mut infile_addr = [0; 8];
-        unsafe { 
-            emu.read_mem(offset, &mut infile_addr);
-            emu.read_mem(*(infile_addr.as_ptr() as *const u64), &mut buf);
-        }
 
-        let string = String::from_utf8(buf.to_vec()).unwrap();
-        println!("at i: {} = {}", i, string);
-
-    }
-
+    let mut input_name = "./solutions/files/infile".to_string();
+    //let input_file = input.generate_name(0);
+    //input_name.push_str(&input_name);
+    let file_path = Path::new(&input_name);
 
     let mut harness = |input: &BytesInput| {
-        let mut input_name = "./solutions/files/infile".to_string();
-        //let input_file = input.generate_name(0);
-        //input_name.push_str(&input_name);
-        let file_path = Path::new(&input_name);
+        
         input.to_file(&file_path);
 
         unsafe {
@@ -248,7 +231,7 @@ pub fn coverage_fuzz() -> Result<(), Error>{
         //
         // this is essentially the same crash deduplication strategy used by afl++
         let mut objective =
-            feedback_and_fast!(CrashFeedback::new(), MaxMapFeedback::new(&edges_observer));
+            feedback_or_fast!(CrashFeedback::new(), TimeoutFeedback::new());
 
         //
         // Component: State
@@ -266,7 +249,7 @@ pub fn coverage_fuzz() -> Result<(), Error>{
         let mut state = state.unwrap_or_else(|| {
             StdState::new(
                 // random number generator with a time-based seed
-                StdRand::with_seed(current_nanos()),
+                StdRand::with_seed(123),
                 // input corpus
                 input_corpus.clone(),
                 // solutions corpus
