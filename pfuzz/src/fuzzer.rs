@@ -1,12 +1,13 @@
 use libafl::bolts::cli;
 use libafl::corpus::ondisk::{OnDiskCorpus, OnDiskMetadataFormat};
-use libafl::stages::StdMutationalStage;
-use libafl::{Error, StdFuzzer, feedback_or, feedback_and_fast};
-use libafl::prelude::{BytesInput, Input, VariableMapObserver, HitcountsMapObserver, TimeObserver, StdRand, Tokens, StdScheduledMutator, havoc_mutations, tokens_mutations, tuple_list, MultiMonitor, Launcher, StdShMemProvider, EventConfig, UsesInput};
-use libafl::schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler};
+use libafl::schedulers::powersched::PowerSchedule;
+use libafl::stages::{StdMutationalStage, CalibrationStage, StdPowerMutationalStage};
+use libafl::{Error, StdFuzzer, feedback_or, feedback_and_fast, feedback_or_fast};
+use libafl::prelude::{BytesInput, Input, VariableMapObserver, HitcountsMapObserver, TimeObserver, StdRand, Tokens, StdScheduledMutator, havoc_mutations, tokens_mutations, tuple_list, MultiMonitor, Launcher, StdShMemProvider, EventConfig, UsesInput, HasTargetBytes, AsSlice, InMemoryCorpus, InMemoryOnDiskCorpus, I2SRandReplace, StdMOptMutator, TimeoutFeedback};
+use libafl::schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler, PowerQueueScheduler};
 use libafl::state::StdState;
 use libafl_qemu::edges::{self, edges_map_mut_slice, MAX_EDGES_NUM};
-use libafl_qemu::{self, ArchExtras, QemuHooks, QemuExecutor, QemuInstrumentationFilter, QemuAsanHelper, QemuHelper, Emulator, Regs};
+use libafl_qemu::{self, ArchExtras, QemuHooks, QemuExecutor, QemuInstrumentationFilter, QemuAsanHelper, QemuHelper, Emulator, Regs, GuestReg};
 use std::{env, process, fs};
 use std::path::Path;
 use std::ptr::addr_of_mut;
@@ -25,6 +26,8 @@ use libafl_qemu::MmapPerms;
 
 use crate::main;
 
+pub const MAX_INPUT_SIZE: usize = 1048576;
+
 pub fn pfuzz() {
 
 }
@@ -34,7 +37,7 @@ pub fn pfuzz() {
 #[derive(Default, Debug)]
 struct QemuGPRegisterHelper {
     /// vector of values representing each registers saved value
-    register_state: Vec<u64>,
+    register_state: Vec<u32>,
 }
 
 /// implement the QemuHelper trait for QemuGPRegisterHelper
@@ -54,7 +57,7 @@ impl QemuGPRegisterHelper {
     fn new(emulator: &Emulator) -> Self {
         let register_state = (0..emulator.num_regs())
             .map(|reg_idx| emulator.read_reg(reg_idx).unwrap_or(0))
-            .collect::<Vec<u64>>();
+            .collect::<Vec<u32>>();
 
         Self { register_state }
     }
@@ -94,7 +97,7 @@ pub fn coverage_fuzz() -> Result<(), Error>{
     // path to input corpus directory
     let corpus_dirs = fuzzer_options.input.as_slice();
     // corpus that will be evolved in memory, during fuzzing; metadata saved in json
-    let input_corpus = OnDiskCorpus::with_meta_format(
+    let input_corpus: OnDiskCorpus<BytesInput> = OnDiskCorpus::with_meta_format(
         fuzzer_options.output.join("queue"),
         OnDiskMetadataFormat::JsonPretty,
     )?;
@@ -122,71 +125,50 @@ pub fn coverage_fuzz() -> Result<(), Error>{
     // command line stuff every time, we'll run until main, and then set our entrypoint to be past
     // the getopt stuff by adding a static offset found by looking at the disassembly. This is the
     // same concept as using AFL_ENTRYPOINT.
-    let main_ptr = elf.resolve_symbol("main", emu.load_addr()).unwrap();
+    let test_one_input_ptr = elf
+    .resolve_symbol("LLVMFuzzerTestOneInput", emu.load_addr())
+    .expect("Symbol LLVMFuzzerTestOneInput not found");
 
-    // point at which we want to stop execution, i.e. before return from main and before optind++
-    let ret_addr = main_ptr + 0x33C;
-    //let ret_addr = main_ptr + 0x42B;
-
-    emu.set_breakpoint(main_ptr);
+    emu.set_breakpoint(test_one_input_ptr);
     unsafe {emu.run()}
 
+    let ret_addr = emu.read_return_address().unwrap();
+
     //get the stack pointer
-    let stack_ptr = emu.read_reg::<_,u64>(Regs::Rsp).unwrap();
+    let stack_ptr = emu.read_reg::<_,u32>(Regs::Esp).unwrap();
     //get the first argument
-    let argc = emu.read_reg::<_, u64>(Regs::Rdi).unwrap();
+    let argc = emu.read_reg::<_, u32>(Regs::Edi).unwrap();
     //get the second argument (argv**)
-    let argv = emu.read_reg::<_,u64>(Regs::Rsi).unwrap();
+    let argv = emu.read_reg::<_,u32>(Regs::Esi).unwrap();
     //get input address
-    let input_addr = emu.map_private(0, 4096, MmapPerms::ReadWrite).unwrap();
-    let zeros = [0; 4096];
-    unsafe {}
+    let input_addr = emu.map_private(0, MAX_INPUT_SIZE, MmapPerms::ReadWrite).unwrap();
 
-    println!("Num args: {}",argc);
 
-    emu.remove_breakpoint(main_ptr);
+    emu.remove_breakpoint(test_one_input_ptr);
     emu.set_breakpoint(ret_addr);
+    
+    let mut harness = |input: &BytesInput| {
+        
+        let target = input.target_bytes();
+        let mut buf = target.as_slice();
+        let mut len = buf.len();
 
-    let mut args = fuzzer_options.qemu_args.as_slice()[3..].to_vec();
-    let arg_len = args.len();
-    
-    let infile_offset = argv + (8*(argc-1) as u64);
-    
-    for i in 0..argc {
-        let mut buf: [u8; 256] = [0; 256];
-        let offset = argv + (8*i as u64);
-        let mut infile_addr = [0; 8];
-        unsafe { 
-            emu.read_mem(offset, &mut infile_addr);
-            emu.read_mem(*(infile_addr.as_ptr() as *const u64), &mut buf);
+        if len > MAX_INPUT_SIZE {
+            buf =  &buf[0..MAX_INPUT_SIZE];
+            len = MAX_INPUT_SIZE;
         }
 
-        let string = String::from_utf8(buf.to_vec()).unwrap();
-        println!("at i: {} = {}", i, string);
-
-    }
-
-
-    let mut harness = |input: &BytesInput| {
-        let mut input_name = "./solutions/files/infile".to_string();
-        //let input_file = input.generate_name(0);
-        //input_name.push_str(&input_name);
-        let file_path = Path::new(&input_name);
-        input.to_file(&file_path);
-
         unsafe {
-            //emu.write_mem(input_addr, &zeros);
-            //emu.write_mem(input_addr, input_name.as_bytes());
-            //emu.write_mem(infile_offset, &input_addr.to_le_bytes());
+            emu.write_mem(input_addr, buf);
 
-            emu.write_reg(Regs::Rdi, argc).unwrap();
-            emu.write_reg(Regs::Rsi, argv).unwrap();
-            emu.write_reg(Regs::Rip, main_ptr).unwrap();
+            emu.write_reg(Regs::Edi, input_addr).unwrap();
+            emu.write_reg(Regs::Esi, len as GuestReg).unwrap();
+            emu.write_reg(Regs::Eip, test_one_input_ptr).unwrap();
+            emu.write_reg(Regs::Esp, stack_ptr).unwrap();
 
             emu.run();
         }
 
-        fs::remove_file(file_path).unwrap();
         ExitKind::Ok
     };
 
@@ -223,16 +205,23 @@ pub fn coverage_fuzz() -> Result<(), Error>{
         // we need to use it alongside some other Feedback that has the ability to perform said
         // classification. These two feedbacks are combined to create a boolean formula, i.e. if the
         // input triggered a new code path, OR, false.
+        // New maximization map feedback (attempts to maximize the map contents) linked to the
+        // edges observer and the feedback state. This one will track indexes, but will not track
+        // novelties, i.e. new_tracking(... true, false).
+        let map_feedback = MaxMapFeedback::tracking(&edges_observer, true, false);
+
+        //Calibration stage
+        let calibration = CalibrationStage::new(&map_feedback);
+
         let mut feedback = feedback_or!(
-            // New maximization map feedback (attempts to maximize the map contents) linked to the
-            // edges observer and the feedback state. This one will track indexes, but will not track
-            // novelties, i.e. new_tracking(... true, false).
-            MaxMapFeedback::tracking(&edges_observer, true, false),
+            map_feedback,
             // Time feedback, this one does not need a feedback state, nor does it ever return true for
             // is_interesting, However, it does keep track of testcase execution time by way of its
             // TimeObserver
             TimeFeedback::with_observer(&time_observer)
         );
+
+        
 
         // A feedback, when used as an Objective, determines if an input should be added to the
         // corpus or not. In the case below, we're saying that in order for a testcase's input to
@@ -247,8 +236,7 @@ pub fn coverage_fuzz() -> Result<(), Error>{
         // has been met, i.e. short-circuiting logic.
         //
         // this is essentially the same crash deduplication strategy used by afl++
-        let mut objective =
-            feedback_and_fast!(CrashFeedback::new(), MaxMapFeedback::new(&edges_observer));
+        let mut objective = feedback_or!(CrashFeedback::new(), TimeoutFeedback::new());
 
         //
         // Component: State
@@ -268,7 +256,7 @@ pub fn coverage_fuzz() -> Result<(), Error>{
                 // random number generator with a time-based seed
                 StdRand::with_seed(current_nanos()),
                 // input corpus
-                input_corpus.clone(),
+                InMemoryOnDiskCorpus::new(corpus_dirs[0].clone()).unwrap(),
                 // solutions corpus
                 solutions_corpus.clone(),
                 &mut feedback,
@@ -286,7 +274,10 @@ pub fn coverage_fuzz() -> Result<(), Error>{
             state.add_metadata(tokens);
         }
 
-        let scheduler = IndexesLenTimeMinimizerScheduler::new(QueueScheduler::new());
+        //  a randomic Input2Stage stage
+        let i2s = StdMutationalStage::new(StdScheduledMutator::new(tuple_list!(I2SRandReplace::new())));
+
+        let scheduler = IndexesLenTimeMinimizerScheduler::new(PowerQueueScheduler::new(&mut state, &edges_observer, PowerSchedule::FAST));
 
         //
         // Component: Fuzzer
@@ -344,14 +335,16 @@ pub fn coverage_fuzz() -> Result<(), Error>{
         // Component: Mutator
         //
 
-        // Setup a havoc mutator and dictionary (token) mutator with a mutational stage
-        let mutator = StdScheduledMutator::new(havoc_mutations().merge(tokens_mutations()));
+        // Setup a MOPT mutator
+        /*let mutator = let mutator = StdScheduledMutator::new(havoc_mutations());*/
+
+        let power = StdPowerMutationalStage::new(StdScheduledMutator::new(havoc_mutations()));
 
         //
         // Component: Stage
         //
 
-        let mut stages = tuple_list!(StdMutationalStage::new(mutator));
+        let mut stages = tuple_list!(calibration, i2s, power);
 
         fuzzer.fuzz_loop(&mut stages, &mut executor, &mut state, &mut mgr)?;
 

@@ -41,12 +41,6 @@ pub struct SchedulerMetadata {
     queue_cycles: u64,
     /// The vector to contain the frequency of each execution path.
     n_fuzz: Vec<u32>,
-    /// The minimum distance to target functions
-    min_d: f64,
-    /// The maximum distance to target functions
-    max_d: f64,
-    /// The vector to contain the distance of each execution path in PFuzz
-    distances: Vec<f64>
 }
 
 /// The metadata for runs in the calibration stage.
@@ -63,9 +57,6 @@ impl SchedulerMetadata {
             bitmap_entries: 0,
             queue_cycles: 0,
             n_fuzz: vec![0; N_FUZZ_SIZE],
-            min_d: f64::MAX,
-            max_d: f64::MIN,
-            distances: vec![f64::MAX; N_FUZZ_SIZE]
         }
     }
 
@@ -151,36 +142,6 @@ impl SchedulerMetadata {
     #[must_use]
     pub fn n_fuzz_mut(&mut self) -> &mut [u32] {
         &mut self.n_fuzz
-    }
-
-    /// Gets the minD
-    #[must_use]
-    pub fn mid_d(&self) -> &f64{
-        &self.min_d
-    }
-
-    /// Sets the minD
-    #[must_use]
-    pub fn mid_d_mut(&mut self) -> &mut f64{
-        &mut self.min_d
-    }
-
-    /// Gets the maxD
-    #[must_use]
-    pub fn max_d(&self) -> &f64{
-        &self.max_d
-    }
-
-    /// Gets the distances in PFuzz
-    #[must_use]
-    pub fn distances(&self) -> &[f64] {
-        &self.distances
-    }
-
-    /// Sets the distances in PFuzz
-    #[must_use]
-    pub fn distances_mut(&mut self) -> &mut [f64] {
-        &mut self.distances
     }
 }
 
@@ -333,24 +294,13 @@ where
             .ok_or_else(|| Error::key_not_found("MapObserver not found".to_string()))?;
 
         let mut hash = observer.hash() as usize;
-        
-        let distance_sum = observer.get_distance();
 
         let psmeta = state.metadata_mut::<SchedulerMetadata>()?;
 
-        if psmeta.min_d == f64::MAX || psmeta.min_d > distance_sum {
-            psmeta.min_d = distance_sum;
-        }
-
-        if psmeta.max_d == f64::MIN || psmeta.max_d < distance_sum {
-            psmeta.max_d = distance_sum;
-        }
 
         hash %= psmeta.n_fuzz().len(); 
         // Update the path frequency
         psmeta.n_fuzz_mut()[hash] = psmeta.n_fuzz()[hash].saturating_add(1);
-        psmeta.distances_mut()[hash] = observer.get_distance();
-
         self.last_hash = hash;
 
         Ok(())

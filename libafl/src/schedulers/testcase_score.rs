@@ -63,7 +63,7 @@ where
     fn compute(state: &S, entry: &mut Testcase<<S>::Input>) -> Result<f64, Error> {
         let psmeta = state.metadata::<SchedulerMetadata>()?;
         let tcmeta = entry.metadata::<SchedulerTestcaseMetadata>()?;
-        let distance = psmeta.distances()[tcmeta.n_fuzz_entry()];
+        let distance = 0.0;//psmeta.distances()[tcmeta.n_fuzz_entry()];
         Ok(distance)
     }
 }
@@ -258,7 +258,7 @@ where
                         / f64::from(psmeta.n_fuzz()[tcmeta.n_fuzz_entry()] + 1);
                 }
                 PowerSchedule::AFLGo => {
-                    let min_d = psmeta.mid_d();
+                    /*let min_d = psmeta.mid_d();
                     let max_d = psmeta.max_d();
                     let distance = psmeta.distances()[tcmeta.n_fuzz_entry()];
                     let dstb = if max_d == min_d {
@@ -271,7 +271,7 @@ where
                     let base = 20.0;
                     let texp =  f64::powf(base, -t/tx);// base.powf(-t/tx);
                     let pstb = 10.0 * (1.0 - dstb)*(1.0 - texp) + 0.5*texp - 5.0;
-                    factor = f64::powf(2.0, pstb);
+                    factor = f64::powf(2.0, pstb);*/
                 }
             }
         }

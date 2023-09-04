@@ -186,12 +186,12 @@ fn fuzz(
     emu.set_breakpoint(test_one_input_ptr); // LLVMFuzzerTestOneInput
     unsafe { emu.run() };
 
-    println!("Break at {:#x}", emu.read_reg::<_, u64>(Regs::Rip).unwrap());
+    println!("Break at {:#x}", emu.read_reg::<_, u32>(Regs::Eip).unwrap());
 
-    let stack_ptr: u64 = emu.read_reg(Regs::Rsp).unwrap();
-    let mut ret_addr = [0; 8];
+    let stack_ptr: u32 = emu.read_reg(Regs::Esp).unwrap();
+    let mut ret_addr = [0; 4];
     unsafe { emu.read_mem(stack_ptr, &mut ret_addr) };
-    let ret_addr = u64::from_le_bytes(ret_addr);
+    let ret_addr = u32::from_le_bytes(ret_addr);
 
     println!("Stack pointer = {stack_ptr:#x}");
     println!("Return address = {ret_addr:#x}");
@@ -311,7 +311,7 @@ fn fuzz(
     let scheduler = IndexesLenTimeMinimizerScheduler::new(PowerQueueScheduler::new(
         &mut state,
         &edges_observer,
-        PowerSchedule::FAST,
+        PowerSchedule::EXPLORE,
     ));
 
     // A fuzzer with feedbacks and a corpus scheduler
@@ -330,10 +330,10 @@ fn fuzz(
         unsafe {
             emu.write_mem(input_addr, buf);
 
-            emu.write_reg(Regs::Rdi, input_addr).unwrap();
-            emu.write_reg(Regs::Rsi, len as GuestReg).unwrap();
-            emu.write_reg(Regs::Rip, test_one_input_ptr).unwrap();
-            emu.write_reg(Regs::Rsp, stack_ptr).unwrap();
+            emu.write_reg(Regs::Edi, input_addr).unwrap();
+            emu.write_reg(Regs::Esi, len as GuestReg).unwrap();
+            emu.write_reg(Regs::Eip, test_one_input_ptr).unwrap();
+            emu.write_reg(Regs::Esp, stack_ptr).unwrap();
 
             emu.run();
         }

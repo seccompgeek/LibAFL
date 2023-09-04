@@ -24,9 +24,10 @@ use libafl::{
     monitors::MultiMonitor,
     mutators::scheduled::{havoc_mutations, StdScheduledMutator},
     observers::{HitcountsMapObserver, TimeObserver, VariableMapObserver},
-    schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler},
+    schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler, PowerQueueScheduler, powersched::PowerSchedule},
     stages::StdMutationalStage,
     state::{HasCorpus, StdState},
+    prelude::{StdMOptMutator, StdPowerMutationalStage, tokens_mutations, Merge},
     Error,
 };
 use libafl_qemu::{
@@ -36,6 +37,8 @@ use libafl_qemu::{
     emu::Emulator,
     ArchExtras, CallingConvention, GuestAddr, GuestReg, MmapPerms, QemuExecutor, QemuHooks,
     QemuInstrumentationFilter, Regs,
+    QemuAsanHelper,
+    asan::QemuAsanOptions
 };
 use rangemap::RangeMap;
 
@@ -118,8 +121,8 @@ pub fn fuzz() {
     println!("ARGS: {:#?}", options.args);
 
     env::remove_var("LD_LIBRARY_PATH");
-    let env: Vec<(String, String)> = env::vars().collect();
-    let emu = Emulator::new(&options.args, &env).unwrap();
+    let mut env: Vec<(String, String)> = env::vars().collect();
+    let emu = libafl_qemu::init_with_asan(&mut options.args, &mut env).unwrap();
 
     let mut elf_buffer = Vec::new();
     let elf = EasyElf::from_file(emu.binary_path(), &mut elf_buffer).unwrap();
@@ -225,7 +228,7 @@ pub fn fuzz() {
         });
 
         // A minimization+queue policy to get testcasess from the corpus
-        let scheduler = IndexesLenTimeMinimizerScheduler::new(QueueScheduler::new());
+        let scheduler = IndexesLenTimeMinimizerScheduler::new(PowerQueueScheduler::new(&mut state, &edges_observer, PowerSchedule::FAST));
 
         // A fuzzer with feedbacks and a corpus scheduler
         let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
@@ -250,12 +253,13 @@ pub fn fuzz() {
             &emu,
             tuple_list!(
                 QemuEdgeCoverageHelper::default(),
-                QemuDrCovHelper::new(
+                QemuAsanHelper::new(QemuInstrumentationFilter::None, QemuAsanOptions::None),
+                /*QemuDrCovHelper::new(
                     QemuInstrumentationFilter::None,
                     rangemap,
                     PathBuf::from(&options.coverage),
                     false,
-                )
+                )*/
             ),
         );
 
