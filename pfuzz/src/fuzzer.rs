@@ -103,7 +103,7 @@ pub fn coverage_fuzz() -> Result<(), Error>{
     )?;
 
     // corpus in which we store solutions on disk so we can get them after stopping the fuzzer
-    let solutions_corpus = OnDiskCorpus::new(fuzzer_options.output)?;
+    let solutions_corpus = OnDiskCorpus::new(fuzzer_options.output.join("crashes"))?;
 
     //
     // Component: Emulator
@@ -254,7 +254,7 @@ pub fn coverage_fuzz() -> Result<(), Error>{
         let mut state = state.unwrap_or_else(|| {
             StdState::new(
                 // random number generator with a time-based seed
-                StdRand::with_seed(current_nanos()),
+                StdRand::with_seed(123),
                 // input corpus
                 InMemoryOnDiskCorpus::new(corpus_dirs[0].clone()).unwrap(),
                 // solutions corpus
