@@ -77,9 +77,6 @@ impl From<Version> for Str {
     long_about = "Tool for generating DrCov coverage data using QEMU instrumentation"
 )]
 pub struct FuzzerOptions {
-    #[arg(long, help = "Coverage file")]
-    coverage: String,
-
     #[arg(long, help = "Input directory")]
     input: String,
 
@@ -233,33 +230,11 @@ pub fn fuzz() {
         // A fuzzer with feedbacks and a corpus scheduler
         let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 
-        let rangemap = emu
-            .mappings()
-            .filter_map(|m| {
-                m.path()
-                    .map(|p| ((m.start() as usize)..(m.end() as usize), p.to_string()))
-                    .filter(|(_, p)| !p.is_empty())
-            })
-            .enumerate()
-            .fold(
-                RangeMap::<usize, (u16, String)>::new(),
-                |mut rm, (i, (r, p))| {
-                    rm.insert(r, (i as u16, p));
-                    rm
-                },
-            );
-
         let mut hooks = QemuHooks::new(
             &emu,
             tuple_list!(
                 QemuEdgeCoverageHelper::default(),
                 QemuAsanHelper::new(QemuInstrumentationFilter::None, QemuAsanOptions::None),
-                /*QemuDrCovHelper::new(
-                    QemuInstrumentationFilter::None,
-                    rangemap,
-                    PathBuf::from(&options.coverage),
-                    false,
-                )*/
             ),
         );
 
