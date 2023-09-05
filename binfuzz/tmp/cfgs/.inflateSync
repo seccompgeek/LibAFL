@@ -1,9 +1,0 @@
-digraph G {
-  node [shape=box, style="rounded", ];
-  18528 [label="0x00004860", ];
-  441776 [label="0x0006bdb0", ];
-  
-  
-  18528 -> 441776;
-  
-  }

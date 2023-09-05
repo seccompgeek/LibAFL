@@ -2,6 +2,7 @@
 mod observer;
 mod scheduler;
 mod fuzzer;
+mod cfgbuilder;
 
 // Re-export derive(SerdeAny)
 #[cfg(feature = "libafl_derive")]
@@ -13,5 +14,5 @@ extern crate libafl_derive;
 pub use libafl_derive::*;
 
 fn main() {
-    fuzzer::coverage_fuzz();
+    fuzzer::fuzz();
 }
