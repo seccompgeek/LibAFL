@@ -7,14 +7,6 @@ use std::collections::{BinaryHeap, HashMap, HashSet};
 use goblin::mach::Mach::Binary;
 use libafl::prelude::set_distance;
 
-pub struct ICFGMetadata {}
-
-impl HasWeight<ICFGMetadata> for ICFGMetadata {
-    fn compute(metadata: Option<&ICFGMetadata>) -> u32 {
-        1
-    }
-}
-
 pub struct BasicBlock {
     address: usize,
     function: usize,

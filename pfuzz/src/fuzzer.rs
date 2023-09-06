@@ -1,7 +1,15 @@
 //! A libfuzzer-like fuzzer using qemu for binary-only coverage
 //!
 use core::{ptr::addr_of_mut, time::Duration};
-use std::{env, path::PathBuf, process};
+use std::{
+    env, 
+    path::{PathBuf, Path}, 
+    process,
+    fs,
+    collections::HashMap
+};
+
+use crate::cfgbuilder::Program;
 
 use clap::{builder::Str, Parser};
 use libafl::{
@@ -40,44 +48,11 @@ use libafl_qemu::{
     QemuAsanHelper,
     asan::QemuAsanOptions
 };
-use rangemap::RangeMap;
-
 use crate::observer::DistanceMapObserver;
 
-#[derive(Default)]
-pub struct Version;
-
-impl From<Version> for Str {
-    fn from(_: Version) -> Str {
-        let version = [
-            ("Architecture:", env!("CPU_TARGET")),
-            ("Build Timestamp:", env!("VERGEN_BUILD_TIMESTAMP")),
-            ("Describe:", env!("VERGEN_GIT_DESCRIBE")),
-            ("Commit SHA:", env!("VERGEN_GIT_SHA")),
-            ("Commit Date:", env!("VERGEN_RUSTC_COMMIT_DATE")),
-            ("Commit Branch:", env!("VERGEN_GIT_BRANCH")),
-            ("Rustc Version:", env!("VERGEN_RUSTC_SEMVER")),
-            ("Rustc Channel:", env!("VERGEN_RUSTC_CHANNEL")),
-            ("Rustc Host Triple:", env!("VERGEN_RUSTC_HOST_TRIPLE")),
-            ("Rustc Commit SHA:", env!("VERGEN_RUSTC_COMMIT_HASH")),
-            ("Cargo Target Triple", env!("VERGEN_CARGO_TARGET_TRIPLE")),
-        ]
-        .iter()
-        .map(|(k, v)| format!("{k:25}: {v}\n"))
-        .collect::<String>();
-
-        format!("\n{version:}").into()
-    }
-}
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
-#[command(
-    name = format!("qemu-coverage-{}",env!("CPU_TARGET")),
-    version = Version::default(),
-    about,
-    long_about = "Tool for generating DrCov coverage data using QEMU instrumentation"
-)]
 pub struct FuzzerOptions {
     #[arg(long, help = "Input directory")]
     input: String,
