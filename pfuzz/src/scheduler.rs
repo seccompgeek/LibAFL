@@ -87,25 +87,23 @@ impl DistanceTestcaseMetadata {
 libafl::impl_serdeany!(DistanceTestcaseMetadata);
 
 #[derive(Debug, Clone)]
-pub struct DistancePowerScheduler<O,S,M> {
+pub struct DistancePowerScheduler<O,S> {
     power_scheduler: PowerQueueScheduler<O,S>,
     observer_name: String,
     last_hash: usize,
-    phantom: PhantomData<M>
 }
 
-impl<O,S,M> UsesState for DistancePowerScheduler<O,S,M>
+impl<O,S> UsesState for DistancePowerScheduler<O,S>
 where
     S: UsesInput
 {
     type State = S;
 }
 
-impl<O,S,M> RemovableScheduler for DistancePowerScheduler<O,S,M>
+impl<O,S> RemovableScheduler for DistancePowerScheduler<O,S>
 where
     S: HasCorpus + HasMetadata + HasTestcase,
-    O: MapObserver<Entry = u8>,
-    M: MapObserver<Entry = f64>
+    O: MapObserver<Entry = f64>,
 {
     fn on_remove(
             &mut self,
@@ -168,11 +166,10 @@ where
     }
 }
 
-impl<O,S,M> Scheduler for DistancePowerScheduler<O,S,M>
+impl<O,S> Scheduler for DistancePowerScheduler<O,S>
 where 
     S: HasCorpus + HasMetadata + HasTestcase,
-    O: MapObserver<Entry = u8>,
-    M: MapObserver<Entry = f64>
+    O: MapObserver<Entry = f64>,
 {
     fn next(&mut self, state: &mut Self::State) -> Result<CorpusId, libafl::Error> {
         self.power_scheduler.next(state)
@@ -206,7 +203,7 @@ where
             OT: ObserversTuple<Self::State>, {
         
         let observer = observers
-                        .match_name::<M>(&self.observer_name)
+                        .match_name::<O>(&self.observer_name)
                         .ok_or_else(|| Error::key_not_found("MapObserver not found".to_string()))?;
         
         let mut hash = observer.hash() as usize;
@@ -262,17 +259,16 @@ where
 
 }
 
-impl<O,S,M> DistancePowerScheduler<O,S,M>
+impl<O,S> DistancePowerScheduler<O,S>
 where
     S: HasMetadata,
     O: MapObserver,
-    M: MapObserver
 {
     pub fn new(state: &mut S, map_observer_name: &str, power_scheduler: PowerQueueScheduler<O,S>) -> Self {
         if !state.has_metadata::<DistanceSchedulerMetadata>() {
             state.add_metadata::<DistanceSchedulerMetadata>(DistanceSchedulerMetadata::new());
         }
-        Self { power_scheduler, observer_name: map_observer_name.to_string(), last_hash: 0, phantom: PhantomData::default() }
+        Self { power_scheduler, observer_name: map_observer_name.to_string(), last_hash: 0}
     }
 }
 
@@ -317,7 +313,7 @@ where
         clippy::cast_lossless
     )]
     fn compute(state: &S, entry: &mut Testcase<<S>::Input>) -> Result<f64, Error> {
-        let power = CorpusPowerTestcaseScore::compute(state, entry)?;
+        let pafl = CorpusPowerTestcaseScore::compute(state, entry)?;
         let tcmeta = entry.metadata::<DistanceTestcaseMetadata>()?;
         let dsmeta = state.metadata::<DistanceSchedulerMetadata>()?;
         let psmeta = state.metadata::<SchedulerMetadata>()?;
@@ -326,7 +322,8 @@ where
         let t_exp = f64::powf(20.0, -exp);
         let ps = (1.0 - distance)*(1.0 - t_exp) + 0.5*t_exp;
         let power = f64::powf(2.0, 10.0*ps - 5.0);
-        Ok(power)
+        panic!("Annealing power: {}", power*pafl);
+        Ok(power*pafl)
     }
 }
 

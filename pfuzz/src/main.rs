@@ -3,6 +3,12 @@ mod observer;
 mod scheduler;
 mod fuzzer;
 mod cfgbuilder;
+mod calibrate;
+mod hooks;
+
+#[macro_use]
+#[doc(hidden)]
+pub extern crate alloc;
 
 // Re-export derive(SerdeAny)
 #[cfg(feature = "libafl_derive")]

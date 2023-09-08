@@ -14,6 +14,7 @@ debug = true
 vergen = { version = "8.2.1", features = ["build", "cargo", "git", "gitcl", "rustc", "si"] }
 
 [dependencies]
+libafl_targets = { path = "../libafl_targets", version = "0.10.1" }
 clap = { version = "4.3.0", features = ["derive", "string"]}
 libafl_cc = {path = "../libafl_cc"}
 libafl_qemu = {path = "../libafl_qemu", features = ["i386", "usermode"]}
@@ -21,3 +22,6 @@ libafl = {path = "../libafl", features = ["qemu_cli"]}
 serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] } # serialization lib
 goblin = "0.7.1"
 lazy_static = "1.4.0"
+num-traits = { version = "0.2", default-features = false }
+hashbrown =  { version = "0.13", features = ["serde", "ahash"], default-features=false } # A faster hashmap, nostd compatible
+libm = "0.2.2"

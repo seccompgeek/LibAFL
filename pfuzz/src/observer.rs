@@ -16,9 +16,11 @@ use lazy_static::lazy_static;
 
 lazy_static! {
     static ref DISTANCES: Mutex<HashMap<usize, f64>> = Mutex::new(HashMap::default());
+    static ref DISTANCE_ID_MAP: Mutex<HashMap<u64, f64>> = Mutex::new(HashMap::default());
 }
 
-static mut DISTANCE_MAP: [f64; 65000] = [f64::MAX; 65000];
+pub const MAX_DISTANCE_MAP_SIZE: usize = 65536;
+pub static mut DISTANCE_MAP: [f64; MAX_DISTANCE_MAP_SIZE] = [f64::MAX; MAX_DISTANCE_MAP_SIZE];
 
 pub fn get_distance(edge_id: usize) -> Option<f64>{
     let lock = DISTANCES.lock();
@@ -42,20 +44,33 @@ pub fn distance_map_mut() ->&'static mut [f64] {
 }
 
 pub fn distance_map_size() -> usize {
-    65000
+    MAX_DISTANCE_MAP_SIZE
 }
+
+pub fn set_distance_with_id(id: u64, dist: f64) {
+    let mut lock = DISTANCE_ID_MAP.lock();
+    let distances = lock.as_mut().unwrap();
+    distances.insert(id, dist);
+}
+
+pub fn get_distance_with_id(id: u64) -> f64 {
+    let mut lock = DISTANCE_ID_MAP.lock();
+    let distances = lock.as_ref().unwrap();
+    *distances.get(&id).unwrap()
+}
+
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(bound = "M: serde::de::DeserializeOwned")]
 pub struct DistanceMapObserver<M>
 where M: Serialize
 {
-    base: HitcountsMapObserver<M>
+    base: M
 }
 
 impl<S, M> Observer<S> for DistanceMapObserver<M>
 where
-    M: MapObserver<Entry = u8> + Observer<S> + AsMutSlice<Entry = u8>,
+    M: MapObserver<Entry = f64> + Observer<S> + AsMutSlice<Entry = f64>,
     S: UsesInput + HasMetadata,
 {
     #[inline]
@@ -71,22 +86,7 @@ where
         input: &S::Input,
         exit_kind: &ExitKind,
     ) -> Result<(), Error> {
-        let _ = self.base.post_exec(state, input, exit_kind);
-        if let Some(id_map) = state.metadata_map().get::<QemuEdgesMapMetadata>() {
-            let hit_map = self.base.as_mut_slice();
-            let dist_map = distance_map_mut();
-            for (addr_tuple, id) in &id_map.map {
-                let id = *id as usize;
-                if hit_map[id] != u8::default() {
-                    let edge_id = ((addr_tuple.0 >> 1) ^ addr_tuple.1) as usize;
-                    if let Some(d) = get_distance(edge_id) {
-                        dist_map[id] = d;
-                    }
-                }
-            }
-        }
-        
-        Ok(())
+        self.base.post_exec(state, input, exit_kind)
     }
 }
 
@@ -112,13 +112,13 @@ where
 
 impl<M> MapObserver for DistanceMapObserver<M>
 where
-    M: MapObserver<Entry = u8>,
+    M: MapObserver<Entry = f64>,
 {
     type Entry = f64;
 
     #[inline]
     fn initial(&self) -> f64 {
-        f64::MAX
+        self.base.initial()
     }
 
     #[inline]
@@ -128,12 +128,12 @@ where
 
     #[inline]
     fn get(&self, idx: usize) -> &f64 {
-        &distance_map_mut()[idx]
+        self.base.get(idx)
     }
 
     #[inline]
     fn get_mut(&mut self, idx: usize) -> &mut f64 {
-        &mut distance_map_mut()[idx]
+        self.base.get_mut(idx)
     }
 
     /// Count the set bytes in the map
@@ -144,11 +144,7 @@ where
     /// Reset the map
     #[inline]
     fn reset_map(&mut self) -> Result<(), Error> {
-        let  _ =self.base.reset_map();
-        let _ = distance_map_mut().iter_mut().map(|d|{
-            *d = f64::MAX
-        });
-        Ok(())
+        self.base.reset_map()
     }
 
     fn hash(&self) -> u64 {
@@ -199,14 +195,14 @@ where
     M: Serialize + serde::de::DeserializeOwned,
 {
     /// Creates a new [`MapObserver`]
-    pub fn new(base: HitcountsMapObserver<M>) -> Self {
+    pub fn new(base: M) -> Self {
         Self { base }
     }
 }
 
 impl<'it, M> AsIter<'it> for DistanceMapObserver<M>
 where
-    M: Named + Serialize + serde::de::DeserializeOwned + AsIter<'it, Item = u8>,
+    M: Named + Serialize + serde::de::DeserializeOwned + AsIter<'it, Item = f64>,
 {
     type Item = f64;
     type IntoIter = <&'it [f64] as IntoIterator>::IntoIter;
@@ -257,9 +253,9 @@ where
 impl<M, OTA, OTB, S> DifferentialObserver<OTA, OTB, S> for DistanceMapObserver<M>
 where
     M: DifferentialObserver<OTA, OTB, S>
-        + MapObserver<Entry = u8>
+        + MapObserver<Entry = f64>
         + Serialize
-        + AsMutSlice<Entry = u8>,
+        + AsMutSlice<Entry = f64>,
     OTA: ObserversTuple<S>,
     OTB: ObserversTuple<S>,
     S: UsesInput + HasMetadata,

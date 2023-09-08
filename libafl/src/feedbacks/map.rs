@@ -306,8 +306,6 @@ where
 {
     /// Contains information about untouched entries
     pub history_map: Vec<T>,
-    /// The distance history of a given corpus entry.
-    pub distance_history: f64,
 }
 
 crate::impl_serdeany!(
@@ -324,7 +322,6 @@ where
     pub fn new(map_size: usize) -> Self {
         Self {
             history_map: vec![T::default(); map_size],
-            distance_history: f64::MAX
         }
     }
 
@@ -332,7 +329,7 @@ where
     /// The map can be shared.
     #[must_use]
     pub fn with_history_map(history_map: Vec<T>) -> Self {
-        Self { history_map, distance_history: f64::MAX }
+        Self { history_map }
     }
 
     /// Reset the map
@@ -448,8 +445,6 @@ where
             .get_mut::<MapFeedbackMetadata<T>>(&self.name)
             .unwrap();
 
-        map_state.distance_history = observer.get_distance(); //PFuzz
-
         let history_map = map_state.history_map.as_mut_slice();
         if self.indexes {
             let mut indices = Vec::new();
@@ -523,8 +518,6 @@ where
 
         let history_map = map_state.history_map.as_slice();
 
-        let distance_interesting = map_state.distance_history > observer.get_distance();
-
         // Non vector implementation for reference
         /*for (i, history) in history_map.iter_mut().enumerate() {
             let item = map[i];
@@ -576,7 +569,7 @@ where
                 let history = VectorType::from_slice(&history_map[i..]);
                 let items = VectorType::from_slice(&map[i..]);
 
-                if items.simd_max(history) != history || distance_interesting {
+                if items.simd_max(history) != history {
                     interesting = true;
                     break;
                 }
@@ -758,9 +751,9 @@ where
     {
         let mut interesting = false;
         // TODO Replace with match_name_type when stable
+        
+        println!("Feedback: {}",&self.observer_name);
         let observer = observers.match_name::<O>(&self.observer_name).unwrap();
-
-        let new_distance = observer.get_distance();
 
         let map_state = state
             .named_metadata_map_mut()
@@ -807,7 +800,7 @@ where
             }
         }
 
-        if interesting || self.always_track || map_state.distance_history > new_distance {
+        if interesting || self.always_track {
             let len = history_map.len();
             let filled = history_map.iter().filter(|&&i| i != initial).count();
             // opt: if not tracking optimisations, we technically don't show the *current* history
