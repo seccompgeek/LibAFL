@@ -3,9 +3,10 @@ use std::marker::PhantomData;
 
 use libafl::schedulers::powersched::{PowerQueueScheduler, N_FUZZ_SIZE, SchedulerMetadata};
 use libafl::schedulers::testcase_score::CorpusPowerTestcaseScore;
-use libafl::schedulers::{Scheduler, RemovableScheduler};
-use libafl::prelude::{CorpusId, ObserversTuple, HasTestcase, MapObserver, UsesInput, TestcaseScore, Testcase, Corpus, SchedulerTestcaseMetadata};
+use libafl::schedulers::{Scheduler, RemovableScheduler, MinimizerScheduler};
+use libafl::prelude::{CorpusId, ObserversTuple, HasTestcase, MapObserver, UsesInput, TestcaseScore, Testcase, Corpus, SchedulerTestcaseMetadata, current_time, MapIndexesMetadata};
 use libafl::Error;
+use libafl::stages::PowerMutationalStage;
 use libafl::state::{HasCorpus, HasMetadata, UsesState};
 use serde::{Serialize, Deserialize};
 
@@ -299,3 +300,36 @@ where
         Ok(distance)
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct DistancePowerTestcaseScore<S> {
+    phantom: PhantomData<S>
+}
+
+impl<S> TestcaseScore<S> for DistancePowerTestcaseScore<S>
+where
+    S: HasCorpus + HasMetadata
+{
+    #[allow(
+        clippy::cast_precision_loss,
+        clippy::too_many_lines,
+        clippy::cast_sign_loss,
+        clippy::cast_lossless
+    )]
+    fn compute(state: &S, entry: &mut Testcase<<S>::Input>) -> Result<f64, Error> {
+        let power = CorpusPowerTestcaseScore::compute(state, entry)?;
+        let tcmeta = entry.metadata::<DistanceTestcaseMetadata>()?;
+        let dsmeta = state.metadata::<DistanceSchedulerMetadata>()?;
+        let psmeta = state.metadata::<SchedulerMetadata>()?;
+        let distance = dsmeta.distances()[tcmeta.distance_entry()];
+        let exp = current_time().as_secs() as f64/2400.0;
+        let t_exp = f64::powf(20.0, -exp);
+        let ps = (1.0 - distance)*(1.0 - t_exp) + 0.5*t_exp;
+        let power = f64::powf(2.0, 10.0*ps - 5.0);
+        Ok(power)
+    }
+}
+
+/// The standard powerscheduling stage
+pub type StdDistancePowerMutationalStage<E, EM, I, M, Z> = PowerMutationalStage<E, DistancePowerTestcaseScore<<E as UsesState>::State>, EM, I, M, Z>;
+pub type DistanceMinimizerScheduler<CS> = MinimizerScheduler<CS, DistanceTestcaseScore<<CS as UsesState>::State>, MapIndexesMetadata>;

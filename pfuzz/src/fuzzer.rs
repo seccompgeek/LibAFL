@@ -9,7 +9,7 @@ use std::{
     collections::HashMap
 };
 
-use crate::cfgbuilder::Program;
+use crate::{cfgbuilder::Program, scheduler::{DistanceMinimizerScheduler, StdDistancePowerMutationalStage}};
 
 use clap::{builder::Str, Parser};
 use libafl::{
@@ -33,9 +33,9 @@ use libafl::{
     mutators::scheduled::{havoc_mutations, StdScheduledMutator},
     observers::{HitcountsMapObserver, TimeObserver, VariableMapObserver},
     schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler, PowerQueueScheduler, powersched::PowerSchedule},
-    stages::StdMutationalStage,
+    stages::{StdMutationalStage, CalibrationStage},
     state::{HasCorpus, StdState},
-    prelude::{StdMOptMutator, StdPowerMutationalStage, tokens_mutations, Merge},
+    prelude::{StdMOptMutator, StdPowerMutationalStage, tokens_mutations, Merge, MinMapFeedback},
     Error,
 };
 use libafl_qemu::{
@@ -308,18 +308,25 @@ pub fn fuzz() {
 
         // Create an observation channel to keep track of the execution time
         let time_observer = TimeObserver::new("time");
-
+        let coverage_feedback = MaxMapFeedback::tracking(&edges_observer, true, false);
+        
+        let distance_observer = DistanceMapObserver::new(edges_observer);
+        let distance_feedback = MinMapFeedback::tracking(&distance_observer, true, false);
+        
+    
+        let calibration = CalibrationStage::new(&coverage_feedback);
         // Feedback to rate the interestingness of an input
         // This one is composed by two Feedbacks in OR
         let mut feedback = feedback_or!(
             // New maximization map feedback linked to the edges observer and the feedback state
-            MaxMapFeedback::tracking(&edges_observer, true, false),
+            coverage_feedback,
+            distance_feedback,
             // Time feedback, this one does not need a feedback state
             TimeFeedback::with_observer(&time_observer)
         );
 
         // A feedback to choose if an input is a solution or not
-        let mut objective = feedback_or_fast!(CrashFeedback::new(), TimeoutFeedback::new());
+        let mut objective = feedback_or_fast!(CrashFeedback::new());
 
         // If not restarting, create a State from scratch
         let mut state = state.unwrap_or_else(|| {
@@ -341,7 +348,7 @@ pub fn fuzz() {
         });
 
         // A minimization+queue policy to get testcasess from the corpus
-        let scheduler = IndexesLenTimeMinimizerScheduler::new(PowerQueueScheduler::new(&mut state, &edges_observer, PowerSchedule::FAST));
+        let scheduler = DistanceMinimizerScheduler::new(PowerQueueScheduler::new(&mut state, &distance_observer, PowerSchedule::FAST));
 
         // A fuzzer with feedbacks and a corpus scheduler
         let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
@@ -353,8 +360,6 @@ pub fn fuzz() {
                 QemuAsanHelper::new(QemuInstrumentationFilter::None, QemuAsanOptions::None),
             ),
         );
-
-        let distance_observer = DistanceMapObserver::new(edges_observer);
 
         // Create a QEMU in-process executor
         let executor = QemuExecutor::new(
@@ -382,7 +387,9 @@ pub fn fuzz() {
 
         // Setup an havoc mutator with a mutational stage
         let mutator = StdScheduledMutator::new(havoc_mutations());
-        let mut stages = tuple_list!(StdMutationalStage::new(mutator));
+        let power = StdDistancePowerMutationalStage::new(mutator);
+        
+        let mut stages = tuple_list!(calibration, power);
 
         fuzzer.fuzz_loop(&mut stages, &mut executor, &mut state, &mut mgr)?;
         Ok(())
@@ -402,7 +409,7 @@ pub fn fuzz() {
         .monitor(monitor)
         .run_client(&mut run_client)
         .cores(&options.cores)
-        .stdout_file(Some("/dev/null"))
+        //.stdout_file(Some("/dev/null"))
         .build()
         .launch()
     {
