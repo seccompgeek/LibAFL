@@ -239,6 +239,9 @@ where
             }
         };
 
+        let mut distance = 0.0;
+        let mut distance_entry = 0;
+
         // If weighted scheduler or powerscheduler is used, update it
         if state.has_metadata::<SchedulerMetadata>() {
             let map = executor
@@ -291,40 +294,35 @@ where
             data.set_cycle_and_time((total_time, iter));
             data.set_bitmap_size(bitmap_size);
             data.set_handicap(handicap);
-
+            
             if state.has_metadata::<DistanceSchedulerMetadata>() {
                 let data = if let Ok(metadata) = testcase.metadata_mut::<DistanceTestcaseMetadata>() {
                     metadata
                 } else {
                     let strace = map.count_bytes();
                     let distances: Vec<f64> = map.to_vec();
-                    let mut dmin = f64::MAX;
-                    let mut dmax = f64::MIN;
-                    let mut distance = 0.0;
                     for elem in &distances {
-                        if elem != &f64::MAX {
-                            if elem < &dmin {
-                                dmin = *elem;
+                        if elem != &f64::default() {
+                            if elem != &f64::MAX {
+                                distance += *elem;
                             }
-
-                            if elem > &dmax {
-                                dmax = *elem;
-                            }
-
-                            distance += *elem;
                         }
                     }
-
-                    if strace > 0 {
-                        distance /= strace as f64;
+            
+                    if distance == 0.0 && strace != 0 {
+                        distance = f64::MAX;
                     }
-
+            
+                    distance /= strace as f64;
+                    if distance > 1.0 {
+                        distance = 1.0;
+                    }
                     let data = DistanceTestcaseMetadata::new(distance); 
                     testcase.add_metadata(data);
                     testcase.metadata_mut::<DistanceTestcaseMetadata>().unwrap()
                 };
-
-                println!("Added dtcmeta");
+                distance = data.distance();
+                distance_entry = data.distance_entry();
                 /*let dsmeta = state.metadata_mut::<DistanceSchedulerMetadata>()?;
                 if dsmeta.max_distance() < data.distance() || (dsmeta.max_distance() == f64::MAX && data.distance() != f64::MAX) {
                     dsmeta.set_max_distance(data.distance());
@@ -335,6 +333,24 @@ where
                 dsmeta.distances_mut()[data.distance_entry()] = data.distance();*/
             }
         }
+
+        let dsmeta = state
+                .metadata_map_mut()
+                .get_mut::<DistanceSchedulerMetadata>()
+                .unwrap();
+        let max_distance = dsmeta.max_distance();
+        let min_distance = dsmeta.min_distance();
+        if max_distance < distance || max_distance == f64::MAX {
+            dsmeta.set_max_distance(distance);
+        }
+
+        if min_distance > distance {
+            dsmeta.set_min_distance(distance);
+        }
+
+        dsmeta.distances_mut()[distance_entry] = distance;
+
+        mgr.fire(state, Event::UpdateUserStats { name: "distance".to_string(), value: UserStats::Float( if distance > 1000000.0 {100000.0} else {distance}), phantom: PhantomData })?;
 
         // Send the stability event to the broker
         if let Some(meta) = state.metadata_map().get::<UnstableEntriesMetadata>() {

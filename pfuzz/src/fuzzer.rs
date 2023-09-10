@@ -12,6 +12,7 @@ use std::{
 use crate::{cfgbuilder::Program, scheduler::{DistanceMinimizerScheduler, StdDistancePowerMutationalStage, DistancePowerScheduler}, calibrate::CalibrationStage, observer::{distance_map_mut,MAX_DISTANCE_MAP_SIZE}, hooks::QemuDistanceCoverageHelper};
 
 use clap::{builder::Str, Parser};
+use goblin::elf64::header::ET_DYN;
 use libafl::{
     bolts::{
         core_affinity::Cores,
@@ -35,7 +36,7 @@ use libafl::{
     schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler, PowerQueueScheduler, powersched::PowerSchedule},
     stages::StdMutationalStage,
     state::{HasCorpus, StdState},
-    prelude::{StdMOptMutator, StdPowerMutationalStage, tokens_mutations, Merge, MinMapFeedback, ConstMapObserver},
+    prelude::{StdMOptMutator, StdPowerMutationalStage, tokens_mutations, Merge, MinMapFeedback, ConstMapObserver, tui::{TuiMonitor, ui::TuiUI}},
     Error,
 };
 use libafl_qemu::{
@@ -240,6 +241,13 @@ pub fn fuzz() {
     let mut elf_buffer = Vec::new();
     let elf = EasyElf::from_file(emu.binary_path(), &mut elf_buffer).unwrap();
 
+    match preprocess(emu.binary_path(), if elf.goblin().header.e_type == ET_DYN {Some(emu.load_addr())}else{None}){
+        Ok(_) => {},
+        Err(err) => {
+            panic!("{err}");
+        }
+    }
+
     let test_one_input_ptr = elf
         .resolve_symbol("LLVMFuzzerTestOneInput", emu.load_addr())
         .expect("Symbol LLVMFuzzerTestOneInput not found");
@@ -286,12 +294,13 @@ pub fn fuzz() {
 
     let mut harness = |input: &BytesInput| {
         let target = input.target_bytes();
-        let buf = target
-            .as_slice()
-            .chunks(4096)
-            .next()
-            .expect("Failed to get chunk");
-        let len = buf.len() as GuestReg;
+        let mut buf = target.as_slice();
+        let mut len = buf.len();
+        if len > 4096 {
+            buf = &buf[0..4096];
+            len = 4096;
+        }
+        let len = len as GuestReg;
         reset(buf, len).unwrap();
         ExitKind::Ok
     };
@@ -398,6 +407,8 @@ pub fn fuzz() {
     // The shared memory allocator
     let shmem_provider = StdShMemProvider::new().expect("Failed to init shared memory");
 
+    //let tui = TuiUI::new("Distance Fuzzing".to_string(), true);
+    //let monitor = TuiMonitor::new(tui);
     // The stats reporter for the broker
     let monitor = MultiMonitor::new(|s| println!("{s}"));
 

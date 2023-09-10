@@ -14,6 +14,7 @@ libafl::impl_serdeany!(DistanceSchedulerMetadata);
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct DistanceSchedulerMetadata {
+    start_time: u64,
     max_distance: f64,
     min_distance: f64,
     distances: Vec<f64>
@@ -21,7 +22,7 @@ pub struct DistanceSchedulerMetadata {
 
 impl DistanceSchedulerMetadata{
     pub fn new() -> Self {
-        Self { max_distance: f64::MAX, min_distance: f64::MAX, distances: vec![f64::MAX; N_FUZZ_SIZE] }
+        Self {start_time: current_time().as_secs(), max_distance: f64::MAX, min_distance: f64::MAX, distances: vec![f64::MAX; N_FUZZ_SIZE] }
     }
 
     pub fn max_distance(&self) -> f64 {
@@ -46,6 +47,10 @@ impl DistanceSchedulerMetadata{
 
     pub fn distances_mut(&mut self) -> &mut [f64]{
         &mut self.distances
+    }
+
+    pub fn start_time(&self) -> u64 {
+        self.start_time
     }
 }
 
@@ -220,7 +225,7 @@ where
         let mut new_min = dsmeta.min_distance();
         let mut new_max = dsmeta.max_distance();
         for elem in &distances {
-            if elem != &f64::MAX {
+            if elem != &f64::default() {
                 if elem > &new_max || new_max == f64::MAX {
                     new_max = *elem;
                 }
@@ -229,8 +234,14 @@ where
                     new_min = *elem;
                 }
 
-                distance += *elem;
+                if elem != &f64::MAX {
+                    distance += *elem;
+                }
             }
+        }
+
+        if distance == 0.0 && strace != 0 {
+            distance = f64::MAX;
         }
 
         distance /= strace as f64;
@@ -239,9 +250,18 @@ where
             distance = (distance - dsmeta.min_distance())/(dsmeta.max_distance() - dsmeta.min_distance());
             dsmeta.distances_mut()[hash] = distance;
         }else if distance != 0.0 {
-            dsmeta.distances_mut()[hash] = distance;
+            dsmeta.distances_mut()[hash] = 1.0;
         }
 
+        if distance > new_max || new_max == f64::MAX {
+            new_max = distance;
+        }
+
+        if distance < new_min {
+            new_min = distance;
+        }
+
+        //panic!("Evaluation: distance {} strace {} newmin {} newmax {}",distance, strace, new_min, new_max);
         dsmeta.set_min_distance(new_min);
         dsmeta.set_max_distance(new_max);
         
@@ -318,11 +338,11 @@ where
         let dsmeta = state.metadata::<DistanceSchedulerMetadata>()?;
         let psmeta = state.metadata::<SchedulerMetadata>()?;
         let distance = dsmeta.distances()[tcmeta.distance_entry()];
-        let exp = current_time().as_secs() as f64/2400.0;
+        let exp = (current_time().as_secs() - dsmeta.start_time()) as f64/2400.0;
         let t_exp = f64::powf(20.0, -exp);
         let ps = (1.0 - distance)*(1.0 - t_exp) + 0.5*t_exp;
         let power = f64::powf(2.0, 10.0*ps - 5.0);
-        panic!("Annealing power: {}", power*pafl);
+        //panic!("Annealing power: exp {}  t_exp {} distance {} ps {} pafl {} power {}", exp, t_exp, distance, ps, pafl, power);
         Ok(power*pafl)
     }
 }

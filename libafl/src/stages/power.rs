@@ -58,9 +58,7 @@ where
         // Update handicap
         let mut testcase = state.corpus().get(corpus_idx)?.borrow_mut();
         let score = F::compute(state, &mut *testcase)? as u64;
-        if score <= 0 {
-            panic!("Score is 0");
-        }
+        //panic!("Score: {}",&score);
         Ok(score)
     }
 }

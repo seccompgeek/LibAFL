@@ -752,7 +752,6 @@ where
         let mut interesting = false;
         // TODO Replace with match_name_type when stable
         
-        println!("Feedback: {}",&self.observer_name);
         let observer = observers.match_name::<O>(&self.observer_name).unwrap();
 
         let map_state = state
