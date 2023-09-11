@@ -3,10 +3,31 @@
 /// f = 2^(10(p(s,Tb)-0.5) as defined by AFLGo.
 /// For these, we need to compute the function and basic block distances to target functions.
 
-use std::collections::{BinaryHeap, HashMap, HashSet};
+use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 use goblin::mach::Mach::Binary;
 use libafl::prelude::set_distance;
+use std::cmp::{Ordering, Eq};
 
+#[derive(Clone, Eq, PartialEq)]
+struct State<'b> {
+    cost: u32,
+    position: &'b BasicBlock
+}
+
+impl<'b> Ord for State<'b> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other.cost.cmp(&self.cost)
+            .then_with(|| self.position.address.cmp(&other.position.address))
+    }
+}
+
+impl<'b> PartialOrd for State<'b> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+#[derive(Eq, PartialEq)]
 pub struct BasicBlock {
     address: usize,
     function: usize,
@@ -141,34 +162,95 @@ impl Program {
 
     pub fn compute_distances(&mut self) {
         let mut target_distances: HashMap<usize, HashMap<usize, u32>> = HashMap::default();
+        let mut blocks = HashMap::new(); //all the blocks in the program
+
+        //Collect all the blocks in the program.
+        for (entry, function) in &self.funcs {
+            for block in &function.basic_blocks {
+                blocks.insert(*block.0, block.1);
+            }
+        }
+
         let mut func2dist: HashMap<usize, f64> = HashMap::default();
-        let mut default_map = HashMap::default();
         for func in &self.targets {
             let func_entry = self.func_names.get(func.0).unwrap();
-            default_map.insert(*func_entry, u32::MAX);
             func2dist.insert(*func_entry, *func.1);
         };
 
-        for (entry, function) in &self.funcs {
-            let mut visited = HashSet::new();
-            let entry_block = function.basic_blocks.get(entry).unwrap();
-            self.compute_target_distances(entry_block, &default_map, &mut visited, &mut target_distances);
+        //initialize the distances from each block to others to inf
+        let mut default_map: HashMap<usize, u32> = HashMap::default();
+        for block in &blocks {
+            default_map.insert(*block.0, u32::MAX);
         }
+        
+        blocks.iter().for_each(|block|{
+            //initialize the target_distance map self-self: 0, self-others: inf
+            let mut map = default_map.clone();
+            map.insert(*block.0, 0);
 
-        for (_,func) in &self.funcs {
-            for (_,block) in &func.basic_blocks {
-                for next in &block.successors {
-                    let edge = (block.address >> 1) ^ next;
-                    let distances = target_distances.get(next).unwrap();
-                    let mut distance = 0.0;
-                    for (func,dist) in distances {
-                        distance += 1.0 / dist.saturating_add(1) as f64 * func2dist.get(func).unwrap();
+            let mut heap = BinaryHeap::new();
+
+            heap.push(State{cost: 0, position: *block.1});
+
+            while let Some(State {cost, position}) = heap.pop() {
+                let dist = *map.get(&position.address).unwrap();
+                if cost > dist {
+                    continue;
+                }
+
+                let current_func = self.funcs.get(&position.function).unwrap();
+
+                for next in &position.successors {
+                    let next_block = current_func.get_basic_block(*next).unwrap();
+                    let next_state = State {cost: cost + 1, position: next_block};
+
+                    let next_dist = map.get_mut(next).unwrap();
+                    if *next_dist > next_state.cost {
+                        *next_dist = next_state.cost;
+                        heap.push(next_state);
                     }
-                    set_distance(edge, target_distances.len() as f64 / distance);
+                }
+
+                for call in &position.calls {
+                    let callee = self.get_func(*call).unwrap();
+                    let callee_block = callee.get_basic_block(*call).unwrap();
+                    let next_state = State{cost: cost + 1, position: callee_block};
+
+                    let next_dist = map.get_mut(call).unwrap();
+                    if *next_dist > next_state.cost {
+                        *next_dist = next_state.cost;
+                        heap.push(next_state);
+                    }
                 }
             }
-        }
-    }
+            let mut tgt_dists = HashMap::new();
+            for target in &func2dist {
+                if block.1.function == *target.0 {
+                    tgt_dists.insert(*target.0, 1);
+                }else {
+                    let dist = map.get(target.0).unwrap();
+                    tgt_dists.insert(*target.0, *dist);
+                }
+            }
+            assert_eq!(tgt_dists.len(),func2dist.len());
+            target_distances.insert(*block.0, tgt_dists);
+        });
 
+        println!("Blocks: {}, target_distances: {}, targets: {}", blocks.len(), target_distances.len(), func2dist.len());
+
+        for block in &blocks {
+            for next in &block.1.successors {
+                let mut distances = 0.0;
+                let next_distances = target_distances.get(next).unwrap();
+                for target in &func2dist {
+                    let nb_dist = next_distances.get(target.0).unwrap();
+                    distances += 1.0 / (nb_dist.saturating_add(1) as f64 * 1.0/target.1)
+                }
+                let edge_id = (block.0 >> 1) ^ next;
+                set_distance(edge_id, distances);
+            }
+        }
+
+    }
 
 }

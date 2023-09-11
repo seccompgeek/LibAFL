@@ -1,7 +1,7 @@
-remember_Ktype
-gnu_special
-d_unqualified_name
-d_print_comp
-do_type
-demangle_template_value_parm
-do_hpacc_template_literal
+remember_Ktype,0.99
+gnu_special,0.64
+d_unqualified_name,0.244
+d_print_comp,0.433
+do_type,0.452
+demangle_template_value_parm,0.523
+do_hpacc_template_literal,0.778

@@ -302,21 +302,15 @@ where
                     let strace = map.count_bytes();
                     let distances: Vec<f64> = map.to_vec();
                     for elem in &distances {
-                        if elem != &f64::default() {
-                            if elem != &f64::MAX {
-                                distance += *elem;
-                            }
+                        if *elem != f64::default() {
+                            distance += 1.0/ *elem;
                         }
                     }
             
-                    if distance == 0.0 && strace != 0 {
-                        distance = f64::MAX;
-                    }
+                    distance = 1.0/distance;
             
                     distance /= strace as f64;
-                    if distance > 1.0 {
-                        distance = 1.0;
-                    }
+
                     let data = DistanceTestcaseMetadata::new(distance); 
                     testcase.add_metadata(data);
                     testcase.metadata_mut::<DistanceTestcaseMetadata>().unwrap()
@@ -349,7 +343,7 @@ where
         }
 
         dsmeta.distances_mut()[distance_entry] = distance;
-
+        
         mgr.fire(state, Event::UpdateUserStats { name: "distance".to_string(), value: UserStats::Float( if distance > 1000000.0 {100000.0} else {distance}), phantom: PhantomData })?;
 
         // Send the stability event to the broker

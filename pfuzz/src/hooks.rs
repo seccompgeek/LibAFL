@@ -80,6 +80,7 @@ where
             set_distance_with_id(id, dist);
         },
         None => {
+            panic!("Found actual distance: {}, {}, {}", src, dest, 0);
             set_distance_with_id(id, f64::MAX);
         }
     }
