@@ -25,3 +25,4 @@ lazy_static = "1.4.0"
 num-traits = { version = "0.2", default-features = false }
 hashbrown =  { version = "0.13", features = ["serde", "ahash"], default-features=false } # A faster hashmap, nostd compatible
 libm = "0.2.2"
+shared_hashmap = { version = "0.1.0", git = "https://github.com/humanmade/shared_hashmap"}

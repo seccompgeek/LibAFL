@@ -13,6 +13,7 @@ use libafl_qemu::edges::QemuEdgesMapMetadata;
 use serde::{Deserialize, Serialize};
 
 use lazy_static::lazy_static;
+use shared_hashmap::SharedMemoryHashMap;
 
 lazy_static! {
     static ref DISTANCES: Mutex<HashMap<usize, f64>> = Mutex::new(HashMap::default());
@@ -29,6 +30,14 @@ pub fn get_distance(edge_id: usize) -> Option<f64>{
         Some(d) => Some(*d),
         _ => None
     }
+}
+
+pub fn get_distances_map() -> HashMap<usize, f64> {
+    let lock = DISTANCES.lock();
+    let distances = lock.as_ref().unwrap();
+    let mut clone = HashMap::default();
+    clone.extend(distances.iter());
+    clone
 }
 
 pub fn set_distance(edge_id: usize, distance: f64) {

@@ -4,8 +4,9 @@ use libafl_qemu::{QemuHelper, QemuHooks, GuestAddr, QemuHelperTuple, QemuEdgeCov
 use libafl_targets::{coverage::{EDGES_MAP, MAX_EDGES_NUM}, EDGES_MAP_SIZE};
 use serde::{Serialize, Deserialize};
 use core::cmp::max;
+use std::cell::UnsafeCell;
 
-use crate::observer::{set_distance, get_distance, distance_map_mut, set_distance_with_id, DISTANCE_MAP, get_distance_with_id};
+use crate::observer::{set_distance, get_distance, distance_map_mut, set_distance_with_id, DISTANCE_MAP, get_distance_with_id, get_distances_map};
 
 #[derive(Debug)]
 pub struct QemuDistanceCoverageHelper;
@@ -30,6 +31,13 @@ where
     }
 }
 
+/*static mut DISTANCES: *const std::collections::HashMap<usize, f64> = std::ptr::null();
+
+fn get_distances() -> &'static std::collections::HashMap<usize,f64> {
+    unsafe {
+        &*DISTANCES
+    }
+}*/
 
 pub fn gen_unique_edge_ids<QT, S> (
     hooks: &mut QemuHooks<'_,QT,S>,
@@ -45,6 +53,9 @@ where
     let state = state.expect("The gen_unique_edge_ids hook works only for in-process fuzzing");
     if state.metadata_map().get::<QemuEdgesMapMetadata>().is_none() {
         state.add_metadata(QemuEdgesMapMetadata::new());
+        /*unsafe {
+            DISTANCES = Box::leak(Box::new(get_distances_map())) as *const std::collections::HashMap<usize, f64>;
+        }*/
     }
     let meta = state
         .metadata_map_mut()
@@ -75,12 +86,13 @@ where
     };
 
     let edge_id = (src as usize >> 1) ^ (dest as usize);
-    match get_distance(edge_id) {
+    let distance = get_distance(edge_id);
+    //println!("Distances: {}", distances.len());
+    match distance {
         Some(dist) => {
             set_distance_with_id(id, dist);
         },
         None => {
-            panic!("Found actual distance: {}, {}, {}", src, dest, 0);
             set_distance_with_id(id, f64::MAX);
         }
     }
@@ -90,6 +102,10 @@ where
 pub extern "C" fn trace_edge_hitcount(id: u64, _data: u64) {
     unsafe {
         EDGES_MAP[id as usize] = EDGES_MAP[id as usize].wrapping_add(1);
-        DISTANCE_MAP[id as usize] = get_distance_with_id(id);
+        let dist = get_distance_with_id(id);
+        /*if dist != f64::MAX {
+            eprintln!("Distance: ID {} = {}", id, dist);
+        }*/
+        DISTANCE_MAP[id as usize] = dist;
     }
 }

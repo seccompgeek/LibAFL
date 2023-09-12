@@ -195,7 +195,13 @@ fn preprocess(binary: &str, load_addr: Option<GuestAddr>) -> Result<(), String>{
             let caller_addr = *program.get_func_addr(caller_name).unwrap();
             let caller_func = program.get_func_mut(caller_addr).unwrap();
             let caller_block_addr = to_real_addr(usize::from_str_radix(caller_info[1].trim_start_matches("0x"), 16).unwrap(), load_addr);
-            let caller_block = caller_func.get_basic_block_mut(caller_block_addr).unwrap();
+            let caller_block = match caller_func.get_basic_block_mut(caller_block_addr) {
+                Some(block) => block,
+                _ => { 
+                    caller_func.add_basic_block(caller_block_addr);
+                    caller_func.get_basic_block_mut(caller_block_addr).unwrap()
+                }
+            };
             caller_block.add_call(callee_addr);
         }
     }

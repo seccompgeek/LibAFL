@@ -225,14 +225,17 @@ where
         let mut new_min = dsmeta.min_distance();
         let mut new_max = dsmeta.max_distance();
         for elem in &distances {
-            if *elem != f64::MAX {
+            if *elem != f64::default() {
                 distance += 1.0/ *elem;
             }
         }
 
         distance = 1.0/distance;
 
-        distance /= strace as f64;
+        if strace != 0 {
+            distance /= strace as f64;
+        }
+
 
         if dsmeta.min_distance() != dsmeta.max_distance() {
             distance = (distance - dsmeta.min_distance())/(dsmeta.max_distance() - dsmeta.min_distance());

@@ -5,7 +5,7 @@
 
 use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 use goblin::mach::Mach::Binary;
-use libafl::prelude::set_distance;
+use crate::observer::set_distance;
 use std::cmp::{Ordering, Eq};
 
 #[derive(Clone, Eq, PartialEq)]
