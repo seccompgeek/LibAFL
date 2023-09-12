@@ -167,7 +167,7 @@ if __name__ == "__main__":
                         default=True,
                         help='Generate call graph after disassembling')
     parser.add_argument('-i', '--ida-graph', metavar='ida_graph', type=bool,
-                        default=True,
+                        default=False,
                         help='Original IDA graph (one basic block can contain multiple call instructions)')
 
     args = parser.parse_args(args=idc.ARGV[1:])

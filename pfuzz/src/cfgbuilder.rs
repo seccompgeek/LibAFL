@@ -246,7 +246,7 @@ impl Program {
                     let nb_dist = next_distances.get(target.0).unwrap();
                     distances += 1.0 / (nb_dist.saturating_add(1) as f64 * 1.0/target.1)
                 }
-                let edge_id = (block.0 >> 1) ^ next;
+                let edge_id = (*block.0 >> 1) ^ *next;
                 set_distance(edge_id, distances);
             }
         }

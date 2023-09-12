@@ -46,7 +46,7 @@ class BinaryScanner(object):
         last_instruction_size = None
         call_instructions = []
         next_instruction = None
-
+        print ida_graph
         for i in instructions:
             last_instruction = i
             last_instruction_size = idc.get_item_size(i)
@@ -167,12 +167,13 @@ if __name__ == "__main__":
                         default=True,
                         help='Generate call graph after disassembling')
     parser.add_argument('-i', '--ida-graph', metavar='ida_graph', type=bool,
-                        default=True,
+                        default=False,
                         help='Original IDA graph (one basic block can contain multiple call instructions)')
 
     args = parser.parse_args(args=idc.ARGV[1:])
     output_dir = args.output_dir
     ida_graph = args.ida_graph
+    print "ida_graph", ida_graph
 
     if not os.path.isdir(output_dir):
         print output_dir, "is not a directory"
