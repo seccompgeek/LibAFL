@@ -9,7 +9,7 @@ use std::{
     collections::HashMap
 };
 
-use crate::{cfgbuilder::Program, scheduler::{DistanceMinimizerScheduler, StdDistancePowerMutationalStage, DistancePowerScheduler}, calibrate::CalibrationStage, observer::{distance_map_mut,MAX_DISTANCE_MAP_SIZE}, hooks::QemuDistanceCoverageHelper};
+use crate::{cfgbuilder::Program, scheduler::{DistanceMinimizerScheduler, StdDistancePowerMutationalStage, DistancePowerScheduler}, calibrate::CalibrationStage, observer::{distance_map_mut,MAX_DYNAMIC_DISTANCE_MAP_SIZE}, hooks::QemuDistanceCoverageHelper};
 
 use clap::{builder::Str, Parser};
 use goblin::elf64::header::ET_DYN;
@@ -325,7 +325,7 @@ pub fn fuzz() {
         let time_observer = TimeObserver::new("time");
         let coverage_feedback = MaxMapFeedback::tracking(&edges_observer, true, false);
         
-        let distance_observer = DistanceMapObserver::new(ConstMapObserver::<_,MAX_DISTANCE_MAP_SIZE>::new("distances", distance_map_mut()));
+        let distance_observer = DistanceMapObserver::new(ConstMapObserver::<_,MAX_DYNAMIC_DISTANCE_MAP_SIZE>::new("distances", distance_map_mut()));
         let distance_feedback = MinMapFeedback::tracking(&distance_observer, true, false);
         
     
