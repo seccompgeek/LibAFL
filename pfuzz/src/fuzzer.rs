@@ -37,7 +37,7 @@ use libafl::{
     stages::StdMutationalStage,
     state::{HasCorpus, StdState},
     prelude::{StdMOptMutator, StdPowerMutationalStage, tokens_mutations, Merge, MinMapFeedback, ConstMapObserver, tui::{TuiMonitor, ui::TuiUI}},
-    Error,
+    Error, feedback_and_fast,
 };
 use libafl_qemu::{
     drcov::QemuDrCovHelper,

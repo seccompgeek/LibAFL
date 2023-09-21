@@ -163,7 +163,7 @@ where
         //TODO! really not sure how to handle the distance here
         let prev_meta = prev.metadata::<DistanceTestcaseMetadata>()?;
         let dsmeta = state.metadata_mut::<DistanceSchedulerMetadata>()?;
-        dsmeta.distances_mut()[prev_meta.distance_entry()] = f64::MAX;
+        //dsmeta.distances_mut()[prev_meta.distance_entry()] = f64::MAX;
 
         state.testcase_mut(idx)?
             .add_metadata(DistanceTestcaseMetadata::new(f64::MAX));

@@ -244,7 +244,10 @@ impl Program {
                 let next_distances = target_distances.get(next).unwrap();
                 for target in &func2dist {
                     let nb_dist = next_distances.get(target.0).unwrap();
-                    distances += 1.0 / (nb_dist.saturating_add(1) as f64 * 1.0/target.1)
+                    let dist_score = nb_dist.saturating_add(1) as f64 * 1.0/target.1;
+                    if dist_score < distances{
+                        distances = dist_score;
+                    }
                 }
                 let edge_id = (*block.0 >> 1) ^ *next;
                 set_static_distance(edge_id % MAX_STATIC_DISTANCE_MAP_SIZE, distances);
