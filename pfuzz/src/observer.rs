@@ -12,60 +12,39 @@ use libafl::Error;
 use libafl_qemu::edges::QemuEdgesMapMetadata;
 use serde::{Deserialize, Serialize};
 
-use lazy_static::lazy_static;
 use shared_hashmap::SharedMemoryHashMap;
 
-lazy_static! {
-    static ref DISTANCES: Mutex<HashMap<usize, f64>> = Mutex::new(HashMap::default());
-    static ref DISTANCE_ID_MAP: Mutex<HashMap<u64, f64>> = Mutex::new(HashMap::default());
-}
+pub const MAX_STATIC_DISTANCE_MAP_SIZE: usize = 6553600;
+pub const MAX_DYNAMIC_DISTANCE_MAP_SIZE: usize = 65536;
+pub static mut DYNAMIC_DISTANCE_MAP: [f64; MAX_DYNAMIC_DISTANCE_MAP_SIZE] = [0.0; MAX_DYNAMIC_DISTANCE_MAP_SIZE];
+pub static mut STATIC_DISTANCE_MAP: [f64; MAX_STATIC_DISTANCE_MAP_SIZE] = [f64::MAX; MAX_STATIC_DISTANCE_MAP_SIZE];
 
-pub const MAX_DISTANCE_MAP_SIZE: usize = 65536;
-pub static mut DISTANCE_MAP: [f64; MAX_DISTANCE_MAP_SIZE] = [f64::MAX; MAX_DISTANCE_MAP_SIZE];
-
-pub fn get_distance(edge_id: usize) -> Option<f64>{
-    let lock = DISTANCES.lock();
-    let distances = lock.as_ref().unwrap();
-    match distances.get(&edge_id) {
-        Some(d) => Some(*d),
-        _ => None
+pub fn get_static_distance(edge_id: usize) -> f64 {
+    unsafe {
+        STATIC_DISTANCE_MAP[edge_id]
     }
 }
 
-pub fn get_distances_map() -> HashMap<usize, f64> {
-    let lock = DISTANCES.lock();
-    let distances = lock.as_ref().unwrap();
-    let mut clone = HashMap::default();
-    clone.extend(distances.iter());
-    clone
+pub fn set_static_distance(edge_id: usize, distance: f64) {
+    unsafe {
+        STATIC_DISTANCE_MAP[edge_id] = distance;
+    }
 }
 
-pub fn set_distance(edge_id: usize, distance: f64) {
-    let mut lock = DISTANCES.lock();
-    let distances = lock.as_mut().unwrap();
-    distances.insert(edge_id, distance);
+pub fn get_dynamic_distance(id: usize) -> f64 {
+    unsafe {
+        DYNAMIC_DISTANCE_MAP[id]
+    }
 }
 
 pub fn distance_map_mut() ->&'static mut [f64] {
     unsafe {
-        DISTANCE_MAP.as_mut()
+        DYNAMIC_DISTANCE_MAP.as_mut()
     }
 }
 
 pub fn distance_map_size() -> usize {
-    MAX_DISTANCE_MAP_SIZE
-}
-
-pub fn set_distance_with_id(id: u64, dist: f64) {
-    let mut lock = DISTANCE_ID_MAP.lock();
-    let distances = lock.as_mut().unwrap();
-    distances.insert(id, dist);
-}
-
-pub fn get_distance_with_id(id: u64) -> f64 {
-    let mut lock = DISTANCE_ID_MAP.lock();
-    let distances = lock.as_ref().unwrap();
-    *distances.get(&id).unwrap()
+    MAX_DYNAMIC_DISTANCE_MAP_SIZE
 }
 
 

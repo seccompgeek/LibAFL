@@ -1,12 +1,13 @@
 use hashbrown::{HashMap, hash_map::Entry};
-use libafl::{self, prelude::UsesInput, state::HasMetadata};
+use libafl::{self, prelude::UsesInput, state::HasMetadata, impl_serdeany};
 use libafl_qemu::{QemuHelper, QemuHooks, GuestAddr, QemuHelperTuple, QemuEdgeCoverageHelper, edges::QemuEdgesMapMetadata};
 use libafl_targets::{coverage::{EDGES_MAP, MAX_EDGES_NUM}, EDGES_MAP_SIZE};
 use serde::{Serialize, Deserialize};
+use shared_hashmap::SharedMemoryHashMap;
 use core::cmp::max;
 use std::cell::UnsafeCell;
 
-use crate::observer::{set_distance, get_distance, distance_map_mut, set_distance_with_id, DISTANCE_MAP, get_distance_with_id, get_distances_map};
+use crate::observer::{set_static_distance, get_static_distance, distance_map_mut, DYNAMIC_DISTANCE_MAP, MAX_STATIC_DISTANCE_MAP_SIZE};
 
 #[derive(Debug)]
 pub struct QemuDistanceCoverageHelper;
@@ -86,26 +87,14 @@ where
     };
 
     let edge_id = (src as usize >> 1) ^ (dest as usize);
-    let distance = get_distance(edge_id);
-    //println!("Distances: {}", distances.len());
-    match distance {
-        Some(dist) => {
-            set_distance_with_id(id, dist);
-        },
-        None => {
-            set_distance_with_id(id, f64::MAX);
-        }
-    }
+    let distance = get_static_distance(edge_id % MAX_STATIC_DISTANCE_MAP_SIZE);
+    set_static_distance(id as usize, distance);
     Some(id)
 }
 
 pub extern "C" fn trace_edge_hitcount(id: u64, _data: u64) {
     unsafe {
         EDGES_MAP[id as usize] = EDGES_MAP[id as usize].wrapping_add(1);
-        let dist = get_distance_with_id(id);
-        /*if dist != f64::MAX {
-            eprintln!("Distance: ID {} = {}", id, dist);
-        }*/
-        DISTANCE_MAP[id as usize] = dist;
+        DYNAMIC_DISTANCE_MAP[id as usize] = get_static_distance(id as usize);
     }
 }
