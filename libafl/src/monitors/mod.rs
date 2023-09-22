@@ -46,7 +46,10 @@ impl fmt::Display for UserStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             UserStats::Number(n) => write!(f, "{n}"),
-            UserStats::Float(n) => write!(f, "{n}"),
+            UserStats::Float(n) => {
+                let num = format!("{:.precision$e}", *n, precision = 3);
+                write!(f, "{num}")
+            },
             UserStats::String(s) => write!(f, "{s}"),
             UserStats::Ratio(a, b) => {
                 if *b == 0 {

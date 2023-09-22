@@ -333,10 +333,6 @@ where
         let t_exp = f64::powf(20.0, -exp);
         let ps = (1.0 - distance)*(1.0 - t_exp) + 0.5*t_exp;
         let power = f64::powf(2.0, 10.0*ps - 5.0);
-        //panic!("Annealing power: exp {}  t_exp {} distance {} ps {} pafl {} power {}", exp, t_exp, distance, ps, pafl, power);
-        if power > 32.0 {
-            panic!("Too much power: {} {}", power, pafl);
-        }
         Ok(power*pafl)
     }
 }
