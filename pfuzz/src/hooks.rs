@@ -96,6 +96,7 @@ pub extern "C" fn trace_edge_hitcount(id: u64, _data: u64) {
     unsafe {
         let exec_count = EDGES_MAP[id as usize].wrapping_add(1);
         EDGES_MAP[id as usize] = exec_count;
-        DYNAMIC_DISTANCE_MAP[id as usize] = f64::powf(get_static_distance(id), exec_count as f64);
+        let distance = get_static_distance(id as usize);
+        DYNAMIC_DISTANCE_MAP[id as usize] = f64::powf(distance, exec_count as f64);
     }
 }

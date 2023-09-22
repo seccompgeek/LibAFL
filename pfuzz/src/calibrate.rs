@@ -249,6 +249,7 @@ where
                 .match_name::<O>(&self.map_observer_name)
                 .ok_or_else(|| Error::key_not_found("MapObserver not found".to_string()))?;
 
+
             let bitmap_size = map.count_bytes();
 
             let psmeta = state
@@ -299,23 +300,20 @@ where
                 let data = if let Ok(metadata) = testcase.metadata_mut::<DistanceTestcaseMetadata>() {
                     metadata
                 } else {
-                    let strace = map.count_bytes();
-                    let distances: Vec<f64> = map.to_vec();
-                    for elem in &distances {
-                        if *elem != f64::default() {
-                            distance += 1.0/ *elem;
-                        }
-                    }
-            
-                    distance = 1.0/distance;
-            
-                    distance /= strace as f64;
-
-                    let data = DistanceTestcaseMetadata::new(distance); 
-                    testcase.add_metadata(data);
+                    testcase.add_metadata(DistanceTestcaseMetadata::new(f64::MAX));
                     testcase.metadata_mut::<DistanceTestcaseMetadata>().unwrap()
                 };
-                distance = data.distance();
+                let strace = map.count_bytes();
+                let distances: Vec<f64> = map.to_vec();
+                for elem in &distances {
+                    if *elem != f64::default() {
+                        distance += 1.0/ *elem;
+                    }
+                }
+
+                distance = 1.0/distance;
+                distance /= strace as f64;
+                data.set_distance(distance);
                 distance_entry = data.distance_entry();
                 /*let dsmeta = state.metadata_mut::<DistanceSchedulerMetadata>()?;
                 if dsmeta.max_distance() < data.distance() || (dsmeta.max_distance() == f64::MAX && data.distance() != f64::MAX) {
@@ -341,6 +339,12 @@ where
         if min_distance > distance {
             dsmeta.set_min_distance(distance);
         }
+
+        /*if dsmeta.max_distance() != dsmeta.min_distance() {
+            distance = (distance - dsmeta.min_distance()) / (dsmeta.max_distance() - dsmeta.max_distance())
+        } else{
+            distance = 1.0;
+        }*/
 
         dsmeta.distances_mut()[distance_entry] = distance;
         

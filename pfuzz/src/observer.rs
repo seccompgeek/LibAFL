@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use shared_hashmap::SharedMemoryHashMap;
 
-pub const MAX_STATIC_DISTANCE_MAP_SIZE: usize = 6553600;
+pub const MAX_STATIC_DISTANCE_MAP_SIZE: usize = 65536;
 pub const MAX_DYNAMIC_DISTANCE_MAP_SIZE: usize = 65536;
 pub static mut DYNAMIC_DISTANCE_MAP: [f64; MAX_DYNAMIC_DISTANCE_MAP_SIZE] = [0.0; MAX_DYNAMIC_DISTANCE_MAP_SIZE];
 pub static mut STATIC_DISTANCE_MAP: [f64; MAX_STATIC_DISTANCE_MAP_SIZE] = [f64::MAX; MAX_STATIC_DISTANCE_MAP_SIZE];
