@@ -313,16 +313,11 @@ where
 
                 distance = 1.0/distance;
                 distance /= strace as f64;
+                if distance == 0.0 && strace != 0 {
+                    panic!("We have a problem! {}, {}", distance, strace);
+                }
                 data.set_distance(distance);
                 distance_entry = data.distance_entry();
-                /*let dsmeta = state.metadata_mut::<DistanceSchedulerMetadata>()?;
-                if dsmeta.max_distance() < data.distance() || (dsmeta.max_distance() == f64::MAX && data.distance() != f64::MAX) {
-                    dsmeta.set_max_distance(data.distance());
-                }
-                if dsmeta.min_distance() > data.distance() || (dsmeta.min_distance() == f64::MAX && data.distance() != f64::MAX) {
-                    dsmeta.set_min_distance(data.distance());
-                }
-                dsmeta.distances_mut()[data.distance_entry()] = data.distance();*/
             }
         }
 

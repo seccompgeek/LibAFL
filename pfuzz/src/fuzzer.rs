@@ -36,7 +36,7 @@ use libafl::{
     schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler, PowerQueueScheduler, powersched::PowerSchedule},
     stages::StdMutationalStage,
     state::{HasCorpus, StdState},
-    prelude::{StdMOptMutator, StdPowerMutationalStage, tokens_mutations, Merge, MinMapFeedback, ConstMapObserver, tui::{TuiMonitor, ui::TuiUI}},
+    prelude::{StdMOptMutator, StdPowerMutationalStage, tokens_mutations, Merge, MinMapFeedback, ConstMapObserver, tui::{TuiMonitor, ui::TuiUI}, Input},
     Error, feedback_and_fast,
 };
 use libafl_qemu::{

@@ -7,7 +7,7 @@ use shared_hashmap::SharedMemoryHashMap;
 use core::cmp::max;
 use std::cell::UnsafeCell;
 
-use crate::observer::{set_static_distance, get_static_distance, distance_map_mut, DYNAMIC_DISTANCE_MAP, MAX_STATIC_DISTANCE_MAP_SIZE};
+use crate::observer::{set_static_distance, get_static_distance, distance_map_mut, get_inter_distance, set_inter_distance, DYNAMIC_DISTANCE_MAP, MAX_STATIC_DISTANCE_MAP_SIZE};
 
 #[derive(Debug)]
 pub struct QemuDistanceCoverageHelper;
@@ -88,15 +88,13 @@ where
 
     let edge_id = (src as usize >> 1) ^ (dest as usize);
     let distance = get_static_distance(edge_id % MAX_STATIC_DISTANCE_MAP_SIZE);
-    set_static_distance(id as usize, distance);
+    set_inter_distance(id as usize, distance);
     Some(id)
 }
 
 pub extern "C" fn trace_edge_hitcount(id: u64, _data: u64) {
     unsafe {
-        let exec_count = EDGES_MAP[id as usize].wrapping_add(1);
-        EDGES_MAP[id as usize] = exec_count;
-        let distance = get_static_distance(id as usize);
-        DYNAMIC_DISTANCE_MAP[id as usize] = f64::powf(distance, exec_count as f64);
+        EDGES_MAP[id as usize] = EDGES_MAP[id as usize].wrapping_add(1);
+        DYNAMIC_DISTANCE_MAP[id as usize] = get_inter_distance(id as usize); 
     }
 }

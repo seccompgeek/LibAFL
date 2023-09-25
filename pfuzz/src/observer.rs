@@ -18,6 +18,7 @@ pub const MAX_STATIC_DISTANCE_MAP_SIZE: usize = 65536;
 pub const MAX_DYNAMIC_DISTANCE_MAP_SIZE: usize = 65536;
 pub static mut DYNAMIC_DISTANCE_MAP: [f64; MAX_DYNAMIC_DISTANCE_MAP_SIZE] = [0.0; MAX_DYNAMIC_DISTANCE_MAP_SIZE];
 pub static mut STATIC_DISTANCE_MAP: [f64; MAX_STATIC_DISTANCE_MAP_SIZE] = [f64::MAX; MAX_STATIC_DISTANCE_MAP_SIZE];
+pub static mut INTER_DISTANCE_MAP: [f64; MAX_DYNAMIC_DISTANCE_MAP_SIZE] = [0.0; MAX_DYNAMIC_DISTANCE_MAP_SIZE];
 
 pub fn get_static_distance(edge_id: usize) -> f64 {
     unsafe {
@@ -28,6 +29,18 @@ pub fn get_static_distance(edge_id: usize) -> f64 {
 pub fn set_static_distance(edge_id: usize, distance: f64) {
     unsafe {
         STATIC_DISTANCE_MAP[edge_id] = distance;
+    }
+}
+
+pub fn set_inter_distance(id: usize, distance: f64) {
+    unsafe {
+        INTER_DISTANCE_MAP[id] = distance;
+    }
+}
+
+pub fn get_inter_distance(id: usize) -> f64 {
+    unsafe {
+        INTER_DISTANCE_MAP[id]
     }
 }
 

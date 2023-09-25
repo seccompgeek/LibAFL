@@ -231,18 +231,7 @@ where
         }
 
         distance = 1.0/distance;
-
-        if strace != 0 {
-            distance /= strace as f64;
-        }
-
-
-        if dsmeta.min_distance() != dsmeta.max_distance() {
-            distance = (distance - dsmeta.min_distance())/(dsmeta.max_distance() - dsmeta.min_distance());
-            dsmeta.distances_mut()[hash] = distance;
-        }else if distance != 0.0 {
-            dsmeta.distances_mut()[hash] = 1.0;
-        }
+        distance /= strace as f64;
 
         if distance > new_max || new_max == f64::MAX {
             new_max = distance;
@@ -252,7 +241,8 @@ where
             new_min = distance;
         }
 
-        //panic!("Evaluation: distance {} strace {} newmin {} newmax {}",distance, strace, new_min, new_max);
+        dsmeta.distances_mut()[hash] = distance;
+        
         dsmeta.set_min_distance(new_min);
         dsmeta.set_max_distance(new_max);
         
@@ -328,7 +318,14 @@ where
         let tcmeta = entry.metadata::<DistanceTestcaseMetadata>()?;
         let dsmeta = state.metadata::<DistanceSchedulerMetadata>()?;
         let psmeta = state.metadata::<SchedulerMetadata>()?;
-        let distance = dsmeta.distances()[tcmeta.distance_entry()];
+        let mut distance = dsmeta.distances()[tcmeta.distance_entry()];
+        let min_distance = dsmeta.min_distance();
+        let max_distance = dsmeta.max_distance();
+        if distance == f64::MAX {
+            distance = 1.0;
+        }else{
+            distance = (distance - min_distance)/(max_distance - min_distance);
+        }
         let exp = (current_time().as_secs() - dsmeta.start_time()) as f64/2400.0;
         let t_exp = f64::powf(20.0, -exp);
         let ps = (1.0 - distance)*(1.0 - t_exp) + 0.5*t_exp;

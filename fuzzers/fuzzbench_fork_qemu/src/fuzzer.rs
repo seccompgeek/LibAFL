@@ -27,7 +27,7 @@ use libafl::{
     feedback_or,
     feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback},
     fuzzer::{Fuzzer, StdFuzzer},
-    inputs::{BytesInput, HasTargetBytes},
+    inputs::{BytesInput, HasTargetBytes, Input},
     monitors::SimpleMonitor,
     mutators::{
         scheduled::havoc_mutations, token_mutations::I2SRandReplace, tokens_mutations,
@@ -44,6 +44,7 @@ use libafl::{
     state::{HasCorpus, HasMetadata, StdState},
     Error,
 };
+
 use libafl_qemu::{
     cmplog::{CmpLogMap, CmpLogObserver, QemuCmpLogChildHelper},
     edges::{QemuEdgeCoverageChildHelper, EDGES_MAP_PTR, EDGES_MAP_SIZE},
@@ -145,32 +146,32 @@ fn fuzz(
 ) -> Result<(), Error> {
     env::remove_var("LD_LIBRARY_PATH");
 
-    let args: Vec<String> = env::args().collect();
-    let env: Vec<(String, String)> = env::vars().collect();
-    let emu = Emulator::new(&args, &env)?;
+    let mut args: Vec<String> = env::args().collect();
+    let mut env: Vec<(String, String)> = env::vars().collect();
+    let emu = libafl_qemu::init_with_asan(&mut args, &mut env)?;
 
     let mut elf_buffer = Vec::new();
     let elf = EasyElf::from_file(emu.binary_path(), &mut elf_buffer)?;
 
-    let test_one_input_ptr = elf
-        .resolve_symbol("LLVMFuzzerTestOneInput", emu.load_addr())
-        .expect("Symbol LLVMFuzzerTestOneInput not found");
-    println!("LLVMFuzzerTestOneInput @ {test_one_input_ptr:#x}");
+    let main_ptr = elf
+        .resolve_symbol("main", emu.load_addr())
+        .expect("Symbol main not found");
+    println!("main @ {main_ptr:#x}");
 
-    emu.set_breakpoint(test_one_input_ptr); // LLVMFuzzerTestOneInput
+    emu.set_breakpoint(main_ptr); // LLVMFuzzerTestOneInput
     unsafe { emu.run() };
 
-    println!("Break at {:#x}", emu.read_reg::<_, u64>(Regs::Rip).unwrap());
+    println!("Break at {:#x}", emu.read_reg::<_, u32>(Regs::Pc).unwrap());
 
-    let stack_ptr: u64 = emu.read_reg(Regs::Rsp).unwrap();
-    let mut ret_addr = [0; 8];
+    let stack_ptr: u32 = emu.read_reg(Regs::Sp).unwrap();
+    let mut ret_addr = [0; 4];
     unsafe { emu.read_mem(stack_ptr, &mut ret_addr) };
-    let ret_addr = u64::from_le_bytes(ret_addr);
+    let ret_addr = u32::from_le_bytes(ret_addr);
 
     println!("Stack pointer = {stack_ptr:#x}");
     println!("Return address = {ret_addr:#x}");
 
-    emu.remove_breakpoint(test_one_input_ptr); // LLVMFuzzerTestOneInput
+    emu.remove_breakpoint(main_ptr); // LLVMFuzzerTestOneInput
     emu.set_breakpoint(ret_addr); // LLVMFuzzerTestOneInput ret addr
 
     let input_addr = emu.map_private(0, 4096, MmapPerms::ReadWrite).unwrap();
@@ -303,24 +304,26 @@ fn fuzz(
 
     // A fuzzer with feedbacks and a corpus scheduler
     let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
-
+    let input_file = std::path::Path::new("./infile.txt");
     // The wrapped harness function, calling out to the LLVM-style harness
     let mut harness = |input: &BytesInput| {
-        let target = input.target_bytes();
-        let mut buf = target.as_slice();
+        //let target = input.target_bytes();
+        input.to_file(&input_file);
+        /*let mut buf = target.as_slice();
+        
         let mut len = buf.len();
         if len > 4096 {
             buf = &buf[0..4096];
             len = 4096;
-        }
+        }*/
 
         unsafe {
-            emu.write_mem(input_addr, buf);
+            //emu.write_mem(input_addr, buf);
 
-            emu.write_reg(Regs::Rdi, input_addr).unwrap();
-            emu.write_reg(Regs::Rsi, len as GuestReg).unwrap();
-            emu.write_reg(Regs::Rip, test_one_input_ptr).unwrap();
-            emu.write_reg(Regs::Rsp, stack_ptr).unwrap();
+            //emu.write_reg(Regs::Rdi, input_addr).unwrap();
+            //emu.write_reg(Regs::Rsi, len as GuestReg).unwrap();
+            emu.write_reg(Regs::Pc, main_ptr).unwrap();
+            emu.write_reg(Regs::Sp, stack_ptr).unwrap();
 
             emu.run();
         }
