@@ -19,6 +19,24 @@ pub const MAX_DYNAMIC_DISTANCE_MAP_SIZE: usize = 65536;
 pub static mut DYNAMIC_DISTANCE_MAP: [f64; MAX_DYNAMIC_DISTANCE_MAP_SIZE] = [0.0; MAX_DYNAMIC_DISTANCE_MAP_SIZE];
 pub static mut STATIC_DISTANCE_MAP: [f64; MAX_STATIC_DISTANCE_MAP_SIZE] = [f64::MAX; MAX_STATIC_DISTANCE_MAP_SIZE];
 pub static mut INTER_DISTANCE_MAP: [f64; MAX_DYNAMIC_DISTANCE_MAP_SIZE] = [0.0; MAX_DYNAMIC_DISTANCE_MAP_SIZE];
+pub static mut DYNAMIC_DISTANCE_MAP_PTR: *mut f64 = unsafe {&mut DYNAMIC_DISTANCE_MAP as *mut f64};
+pub static mut INTER_DISTANCE_MAP_PTR: *mut f64 = unsafe {&mut DYNAMIC_DISTANCE_MAP as *mut f64};
+
+pub fn set_inter_ptr_distance(id: usize, distance: f64) {
+    unsafe {
+        assert!(!INTER_DISTANCE_MAP_PTR.is_null());
+        let ptr = INTER_DISTANCE_MAP_PTR.add(id);
+        *ptr = distance;
+    }
+}
+
+pub fn set_dynamic_ptr_distance(id: usize, distance: f64) {
+    unsafe {
+        assert!(!DYNAMIC_DISTANCE_MAP_PTR.is_null());
+        let ptr = DYNAMIC_DISTANCE_MAP_PTR.add(id);
+        *ptr = distance;
+    }
+}
 
 pub fn get_static_distance(edge_id: usize) -> f64 {
     unsafe {
@@ -44,15 +62,24 @@ pub fn get_inter_distance(id: usize) -> f64 {
     }
 }
 
+pub fn get_inter_ptr_distance(id: usize) -> f64 {
+    unsafe {
+        assert!(!INTER_DISTANCE_MAP_PTR.is_null() && id < MAX_DYNAMIC_DISTANCE_MAP_SIZE);
+        let ptr = INTER_DISTANCE_MAP_PTR.add(id);
+        *ptr
+    }
+}
+
 pub fn get_dynamic_distance(id: usize) -> f64 {
     unsafe {
         DYNAMIC_DISTANCE_MAP[id]
     }
 }
 
-pub fn distance_map_mut() ->&'static mut [f64] {
+pub fn distance_map_mut<'a>() ->&'a mut [f64] {
     unsafe {
-        DYNAMIC_DISTANCE_MAP.as_mut()
+        assert!(!DYNAMIC_DISTANCE_MAP_PTR.is_null());
+        std::slice::from_raw_parts_mut(DYNAMIC_DISTANCE_MAP_PTR, MAX_DYNAMIC_DISTANCE_MAP_SIZE)
     }
 }
 

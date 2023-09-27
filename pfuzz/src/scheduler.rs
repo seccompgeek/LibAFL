@@ -326,7 +326,7 @@ where
         }else{
             distance = (distance - min_distance)/(max_distance - min_distance);
         }
-        let exp = (current_time().as_secs() - dsmeta.start_time()) as f64/2400.0;
+        let exp = (current_time().as_secs() - dsmeta.start_time()) as f64/8600.0;
         let t_exp = f64::powf(20.0, -exp);
         let ps = (1.0 - distance)*(1.0 - t_exp) + 0.5*t_exp;
         let power = f64::powf(2.0, 10.0*ps - 5.0);

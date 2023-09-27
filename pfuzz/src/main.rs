@@ -5,6 +5,7 @@ mod fuzzer;
 mod cfgbuilder;
 mod calibrate;
 mod hooks;
+mod forkfuzzer;
 
 #[macro_use]
 #[doc(hidden)]
@@ -20,5 +21,5 @@ extern crate libafl_derive;
 pub use libafl_derive::*;
 
 fn main() {
-    fuzzer::fuzz();
+    forkfuzzer::fuzz_main();
 }

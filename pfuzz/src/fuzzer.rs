@@ -5,11 +5,14 @@ use std::{
     env, 
     path::{PathBuf, Path}, 
     process,
-    fs,
-    collections::HashMap
+    collections::HashMap,
+    fs::{self, File, OpenOptions},
+    io::{self, Write},
+    os::fd::{AsRawFd, FromRawFd},
+    cell::RefCell, str::FromStr, 
 };
 
-use crate::{cfgbuilder::Program, scheduler::{DistanceMinimizerScheduler, StdDistancePowerMutationalStage, DistancePowerScheduler}, calibrate::CalibrationStage, observer::{distance_map_mut,MAX_DYNAMIC_DISTANCE_MAP_SIZE}, hooks::QemuDistanceCoverageHelper};
+use crate::{cfgbuilder::Program, scheduler::{DistanceMinimizerScheduler, StdDistancePowerMutationalStage, DistancePowerScheduler}, calibrate::CalibrationStage, observer::{distance_map_mut,MAX_DYNAMIC_DISTANCE_MAP_SIZE, DYNAMIC_DISTANCE_MAP_PTR, INTER_DISTANCE_MAP_PTR}, hooks::{QemuDistanceCoverageHelper, QemuDistanceCoverageChildHelper}};
 
 use clap::{builder::Str, Parser};
 use goblin::elf64::header::ET_DYN;
@@ -22,6 +25,7 @@ use libafl::{
         shmem::{ShMemProvider, StdShMemProvider},
         tuples::tuple_list,
         AsSlice,
+        AsMutSlice
     },
     corpus::{Corpus, InMemoryCorpus, OnDiskCorpus},
     events::{EventConfig, LlmpRestartingEventManager},
@@ -35,20 +39,25 @@ use libafl::{
     observers::{HitcountsMapObserver, TimeObserver, VariableMapObserver},
     schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler, PowerQueueScheduler, powersched::PowerSchedule},
     stages::StdMutationalStage,
-    state::{HasCorpus, StdState},
-    prelude::{StdMOptMutator, StdPowerMutationalStage, tokens_mutations, Merge, MinMapFeedback, ConstMapObserver, tui::{TuiMonitor, ui::TuiUI}, Input},
+    state::{HasCorpus, StdState, HasMetadata},
+    prelude::{current_time, SimpleMonitor, StdMOptMutator, SimpleRestartingEventManager, StdPowerMutationalStage, tokens_mutations, Merge, I2SRandReplace, InMemoryOnDiskCorpus, MinMapFeedback, ConstMapObserver, tui::{TuiMonitor, ui::TuiUI}, Input, dup2, ShadowTracingStage, Tokens, ShadowExecutor},
     Error, feedback_and_fast,
 };
 use libafl_qemu::{
     drcov::QemuDrCovHelper,
-    edges::{edges_map_mut_slice, QemuEdgeCoverageHelper, MAX_EDGES_NUM, EDGES_MAP_SIZE, EDGES_MAP_PTR},
+    edges::{edges_map_mut_slice, QemuEdgeCoverageHelper, QemuEdgeCoverageChildHelper, MAX_EDGES_NUM, EDGES_MAP_SIZE, EDGES_MAP_PTR},
     elf::EasyElf,
     emu::Emulator,
     ArchExtras, CallingConvention, GuestAddr, GuestReg, MmapPerms, QemuExecutor, QemuHooks,
+    QemuForkExecutor,
     QemuInstrumentationFilter, Regs,
     QemuAsanHelper,
-    asan::QemuAsanOptions
+    asan::QemuAsanOptions,
+    cmplog::{QemuCmpLogChildHelper, CmpLogObserver, CmpLogMap},
 };
+
+#[cfg(unix)]
+use nix::{self, unistd::dup};
 
 use crate::observer::DistanceMapObserver;
 
@@ -74,6 +83,9 @@ pub struct FuzzerOptions {
     #[clap(short, long, help = "Enable output from the fuzzer clients")]
     verbose: bool,
 
+    #[clap(short, long, help = "Enable output from the fuzzer clients")]
+    test_main: bool,
+
     #[arg(last = true, help = "Arguments passed to the target")]
     args: Vec<String>,
 }
@@ -84,7 +96,7 @@ impl FuzzerOptions {
     }
 }
 
-fn preprocess(binary: &str, load_addr: Option<GuestAddr>) -> Result<(), String>{
+pub fn preprocess(binary: &str, load_addr: Option<GuestAddr>) -> Result<(), String>{
     let binary_path = Path::new(binary);
     if !binary_path.exists() {
         panic!("Binary {binary} not found!");
@@ -255,7 +267,10 @@ pub fn fuzz() {
         }
     }
 
-    //TODO: if options.test_main.is_some() {}
+    if options.test_main {
+        fuzz_main(emu, corpus_dirs[0].clone(), corpus_dirs[0].clone(), output_dir.clone()).unwrap();
+        return; 
+    }
 
     let test_one_input_ptr = elf
         .resolve_symbol("LLVMFuzzerTestOneInput", emu.load_addr())
@@ -440,11 +455,7 @@ pub fn fuzz() {
     }
 }
 
-
-fn fuzz_main() -> Result<(), Error> {
-    let mut args: Vec<String> = env::args().collect();
-    let mut env: Vec<(String, String)> = env::vars().collect();
-    let emu = libafl_qemu::init_with_asan(&mut args, &mut env)?;
+fn fuzz_main(emu: Emulator, corpus_dir: PathBuf, seed_dir: PathBuf, out_dir: PathBuf) -> Result<(), Error> {
 
     let mut elf_buffer = Vec::new();
     let elf = EasyElf::from_file(emu.binary_path(), &mut elf_buffer)?;
@@ -477,7 +488,7 @@ fn fuzz_main() -> Result<(), Error> {
         OpenOptions::new()
             .append(true)
             .create(true)
-            .open(&logfile)?,
+            .open("./log.txt")?,
     );
 
     #[cfg(unix)]
@@ -506,14 +517,14 @@ fn fuzz_main() -> Result<(), Error> {
     let edges = edges_shmem.as_mut_slice();
     unsafe { EDGES_MAP_PTR = edges.as_mut_ptr() };
 
-    let mut cmp_shmem = shmem_provider
-        .new_shmem(core::mem::size_of::<CmpLogMap>())
-        .unwrap();
-    let cmplog = cmp_shmem.as_mut_slice();
+    let mut dynamic_distance_shem = shmem_provider.new_shmem(MAX_DYNAMIC_DISTANCE_MAP_SIZE * std::mem::size_of::<f64>()).unwrap();
+    let dynamic_distances = dynamic_distance_shem.as_mut_slice();
+    unsafe {DYNAMIC_DISTANCE_MAP_PTR = dynamic_distances.as_mut_ptr() as *mut f64};
+    let dynamic_distances = distance_map_mut();
 
-    // Beginning of a page should be properly aligned.
-    #[allow(clippy::cast_ptr_alignment)]
-    let cmplog_map_ptr = cmplog.as_mut_ptr().cast::<libafl_qemu::cmplog::CmpLogMap>();
+    let mut inter_distance_shem = shmem_provider.new_shmem(MAX_DYNAMIC_DISTANCE_MAP_SIZE * std::mem::size_of::<f64>()).unwrap();
+    let inter_distances = inter_distance_shem.as_mut_slice();
+    unsafe {INTER_DISTANCE_MAP_PTR = inter_distances.as_mut_ptr() as *mut f64};
 
     let (state, mut mgr) = match SimpleRestartingEventManager::launch(monitor, &mut shmem_provider)
     {
@@ -537,24 +548,141 @@ fn fuzz_main() -> Result<(), Error> {
         ))
     };
 
+    let distance_observer = unsafe {
+        DistanceMapObserver::new(ConstMapObserver::<_, MAX_DYNAMIC_DISTANCE_MAP_SIZE>::from_mut_ptr("distances", dynamic_distances.as_mut_ptr()))
+    };
+
     // Create an observation channel to keep track of the execution time
     let time_observer = TimeObserver::new("time");
 
-    // Create an observation channel using cmplog map
-    let cmplog_observer = unsafe { CmpLogObserver::with_map_ptr("cmplog", cmplog_map_ptr, true) };
+    let coverage_feedback = MaxMapFeedback::tracking(&edges_observer, true, false);
 
-    let map_feedback = MaxMapFeedback::tracking(&edges_observer, true, false);
+    let distance_feedback = MinMapFeedback::tracking(&distance_observer, true, false);
 
-    let calibration = CalibrationStage::new(&map_feedback);
-
+    let calibration = CalibrationStage::new(&distance_feedback);
     // Feedback to rate the interestingness of an input
     // This one is composed by two Feedbacks in OR
     let mut feedback = feedback_or!(
         // New maximization map feedback linked to the edges observer and the feedback state
-        map_feedback,
-        // Time feedback, this one does not need a feedback state
-        TimeFeedback::with_observer(&time_observer)
+        coverage_feedback,
+        distance_feedback
     );
+
+    // A feedback to choose if an input is a solution or not
+    let mut objective = CrashFeedback::new();
+
+    // create a State from scratch
+    let mut state = state.unwrap_or_else(|| {
+        StdState::new(
+            // RNG
+            StdRand::with_seed(current_nanos()),
+            // Corpus that will be evolved, we keep it in memory for performance
+            InMemoryOnDiskCorpus::new(corpus_dir.clone()).unwrap(),
+            // Corpus in which we store solutions (crashes in this example),
+            // on disk so the user can get them after stopping the fuzzer
+            OnDiskCorpus::new(out_dir.clone()).unwrap(),
+            // States of the feedbacks.
+            // The feedbacks can report the data that should persist in the State.
+            &mut feedback,
+            // Same for objective feedbacks
+            &mut objective,
+        )
+        .unwrap()
+    });
+
+    let power_scheduler = PowerQueueScheduler::new(&mut state, &distance_observer, PowerSchedule::FAST);
+    // A minimization+queue policy to get testcasess from the corpus
+    let scheduler = DistanceMinimizerScheduler::new(DistancePowerScheduler::new(&mut state, "distances", power_scheduler));
+
+
+    // A fuzzer with feedbacks and a corpus scheduler
+    let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
+
+    let mut hooks = QemuHooks::new(
+        &emu,
+        tuple_list!(
+            QemuDistanceCoverageChildHelper::default(),
+            QemuAsanHelper::new(QemuInstrumentationFilter::None, QemuAsanOptions::None),
+        ),
+    );
+
+    let input_file = std::path::Path::new("./infile.txt");
+    // The wrapped harness function, calling out to the LLVM-style harness
+    let mut harness = |input: &BytesInput| {
+        //let target = input.target_bytes();
+        input.to_file(&input_file);
+        /*let mut buf = target.as_slice();
+        
+        let mut len = buf.len();
+        if len > 4096 {
+            buf = &buf[0..4096];
+            len = 4096;
+        }*/
+
+        unsafe {
+            //emu.write_mem(input_addr, buf);
+
+            //emu.write_reg(Regs::Rdi, input_addr).unwrap();
+            //emu.write_reg(Regs::Rsi, len as GuestReg).unwrap();
+            emu.write_reg(Regs::Pc, main_ptr).unwrap();
+            emu.write_reg(Regs::Sp, stack_ptr).unwrap();
+
+            emu.run();
+        }
+
+        ExitKind::Ok
+    };
+
+    let mut executor = QemuForkExecutor::new(
+        &mut hooks,
+        &mut harness,
+        tuple_list!(edges_observer, distance_observer, time_observer),
+        &mut fuzzer,
+        &mut state,
+        &mut mgr,
+        shmem_provider,
+    )?;
+
+    if state.must_load_initial_inputs() {
+        state
+            .load_initial_inputs(&mut fuzzer, &mut executor, &mut mgr, &[seed_dir.clone()])
+            .unwrap_or_else(|_| {
+                println!("Failed to load initial corpus at {:?}", &seed_dir);
+                process::exit(0);
+            });
+        println!("We imported {} inputs from disk at {:?}.", state.corpus().count(), & seed_dir);
+    }
+
+    let mutator = StdScheduledMutator::new(havoc_mutations());
+    let power = StdDistancePowerMutationalStage::new(mutator);
+
+    let mut stages = tuple_list!(calibration, power);
+
+    #[cfg(unix)]
+    {
+        let null_fd = file_null.as_raw_fd();
+        dup2(null_fd, io::stdout().as_raw_fd())?;
+        dup2(null_fd, io::stderr().as_raw_fd())?;
+    }
+    // reopen file to make sure we're at the end
+    log.replace(
+        OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open("./log.txt")?,
+    );
+
+    fuzzer
+        .fuzz_loop(&mut stages, &mut executor, &mut state, &mut mgr)
+        .expect("Error in the fuzzing loop");
+
+    Ok(())
+}
+
+
+/* 
+fn fuzz_main() -> Result<(), Error> {
+
 
     // A feedback to choose if an input is a solution or not
     let mut objective = CrashFeedback::new();
@@ -692,3 +820,4 @@ fn fuzz_main() -> Result<(), Error> {
     // Never reached
     Ok(())
 }
+*/
